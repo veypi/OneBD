@@ -1,27 +1,17 @@
-package ctx
+package libs
 
 import (
-	"OneBD"
+	"github.com/lightjiang/OneBD/core"
 	"net/http"
 )
-
-// Context 请求相关数据和过程的周期管理
-type Context interface {
-	// Start 开始请求 初始化ctx
-	Start(w http.ResponseWriter, r *http.Request)
-	// 结束请求
-	Stop()
-	// 重置ctx, 用于pool回收
-	ResetCtx()
-}
 
 type context struct {
 	writer  http.ResponseWriter
 	request *http.Request
-	app     OneBD.Application
+	app     core.Application
 }
 
-func NewContext(app OneBD.Application) Context {
+func NewContext(app core.Application) core.Context {
 	return &context{app: app}
 }
 

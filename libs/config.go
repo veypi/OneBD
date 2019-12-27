@@ -1,4 +1,4 @@
-package OneBD
+package libs
 
 type Config struct {
 	// 服务监听地址
@@ -12,8 +12,10 @@ func (c *Config) IsValid() *Config {
 	if c.Host == "" {
 		c.Host = "0.0.0.0:8000"
 	}
+	return c
 }
 
 func DefaultConfig() *Config {
-	return Config{}.IsValid()
+	c := &Config{}
+	return c.IsValid()
 }
