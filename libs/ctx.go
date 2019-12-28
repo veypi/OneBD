@@ -8,10 +8,10 @@ import (
 type context struct {
 	writer  http.ResponseWriter
 	request *http.Request
-	app     core.Application
+	app     *Application
 }
 
-func NewContext(app core.Application) core.Context {
+func NewContext(app *Application) core.Context {
 	return &context{app: app}
 }
 

@@ -20,6 +20,12 @@ func NewCtxPool(newFunc func() core.Context) core.CtxPool {
 	}
 }
 
+func (p *ctxPool) SetCtx(newFunc func() core.Context) {
+	p.pool.New = func() interface{} {
+		return newFunc()
+	}
+}
+
 func (p *ctxPool) Get(w http.ResponseWriter, r *http.Request) core.Context {
 	ctx := p.pool.Get().(core.Context)
 	ctx.Start(w, r)

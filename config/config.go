@@ -1,6 +1,9 @@
 package config
 
-import "crypto/tls"
+import (
+	"crypto/tls"
+	"github.com/lightjiang/OneBD/core"
+)
 
 type Config struct {
 	// 服务监听地址
@@ -11,6 +14,9 @@ type Config struct {
 	TlsCfg        *tls.Config
 	// 最大连接数量 为0 则不限制
 	MaxConnections int
+	NewCtx         func() core.Context
+	CtxPool        core.CtxPool
+	Router         core.Router
 }
 
 func (c *Config) IsValid() *Config {

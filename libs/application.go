@@ -9,7 +9,7 @@ import (
 	"net/http"
 )
 
-type application struct {
+type Application struct {
 	config   *config.Config
 	ctxPool  core.CtxPool
 	server   *http.Server
@@ -20,11 +20,11 @@ type application struct {
 	//
 }
 
-func NewApplication(cfg *config.Config) core.Application {
+func NewApplication(cfg *config.Config) *Application {
 	if cfg == nil {
 		cfg = config.DefaultConfig()
 	}
-	app := &application{
+	app := &Application{
 		config: cfg,
 	}
 	app.server = &http.Server{
@@ -44,29 +44,53 @@ func NewApplication(cfg *config.Config) core.Application {
 		// TODO
 		ConnContext: nil,
 	}
-	app.ctxPool = NewCtxPool(func() core.Context {
+
+	// 判断是否使用内置context
+	newCtx := func() core.Context {
 		return NewContext(app)
-	})
+	}
+	if cfg.NewCtx != nil {
+		newCtx = cfg.NewCtx
+	}
+
+	// 判断是否使用内置ctx pool
+	if cfg.CtxPool != nil {
+		app.ctxPool = cfg.CtxPool
+		app.ctxPool.SetCtx(newCtx)
+	} else {
+		app.ctxPool = NewCtxPool(newCtx)
+	}
+
+	// 判断是否使用内置路由
+	if cfg.Router != nil {
+		app.router = cfg.Router
+	} else {
+		app.router = NewRouter(app)
+	}
 	return app
 }
 
-func (app *application) CtxPool() core.CtxPool {
+func (app *Application) CtxPool() core.CtxPool {
 	return app.ctxPool
 }
 
-func (app *application) Config() *config.Config {
+func (app *Application) Router() core.Router {
+	return app.router
+}
+
+func (app *Application) Config() *config.Config {
 	return app.config
 }
 
-func (app *application) Serve() error {
-	l, e := app.NetListener()
+func (app *Application) Run() error {
+	l, e := app.netListener()
 	if e != nil {
 		return e
 	}
 	return app.server.Serve(l)
 }
 
-func (app *application) NetListener() (net.Listener, error) {
+func (app *Application) netListener() (net.Listener, error) {
 	if app.listener != nil {
 		return app.listener, nil
 	}
