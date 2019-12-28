@@ -1,4 +1,4 @@
-package libs
+package config
 
 type Config struct {
 	// 服务监听地址
