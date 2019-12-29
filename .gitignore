@@ -51,3 +51,5 @@ _testmain.go
 .idea/
 build/
 Session.vim
+
+_example

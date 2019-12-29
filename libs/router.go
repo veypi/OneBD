@@ -14,10 +14,13 @@ func NewRouter(app *Application) core.Router {
 	r := &Router{app: app}
 	return r
 }
-func (r *Router) SubRouter(name string) core.Router {
-	return r
+func (router *Router) SubRouter(name string) core.Router {
+	return router
 }
 
-func (r *Router) DisableMethod(methods ...rfc.Method) {
+func (router *Router) DisableMethod(methods ...rfc.Method) {
 }
-func (r *Router) ServeHTTP(http.ResponseWriter, *http.Request) {}
+func (router *Router) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	router.app.Logger().Warn(r.RequestURI)
+	w.Write([]byte(r.RequestURI))
+}

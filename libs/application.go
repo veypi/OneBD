@@ -4,6 +4,7 @@ import (
 	"crypto/tls"
 	"github.com/lightjiang/OneBD/config"
 	"github.com/lightjiang/OneBD/core"
+	"go.uber.org/zap"
 	"golang.org/x/net/netutil"
 	"net"
 	"net/http"
@@ -29,7 +30,6 @@ func NewApplication(cfg *config.Config) *Application {
 	}
 	app.server = &http.Server{
 		Addr:              cfg.Host,
-		Handler:           app.router,
 		TLSConfig:         cfg.TlsCfg,
 		ReadTimeout:       0,
 		ReadHeaderTimeout: 0,
@@ -67,11 +67,12 @@ func NewApplication(cfg *config.Config) *Application {
 	} else {
 		app.router = NewRouter(app)
 	}
+	app.server.Handler = app.router
 	return app
 }
 
-func (app *Application) CtxPool() core.CtxPool {
-	return app.ctxPool
+func (app *Application) Logger() *zap.Logger {
+	return app.config.Logger
 }
 
 func (app *Application) Router() core.Router {
