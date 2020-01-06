@@ -26,6 +26,8 @@
 
 ## TODO:
 
+- goroutine pool
+
 - hook
 
 - log

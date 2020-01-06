@@ -7,7 +7,9 @@ import (
 )
 
 type ctxPool struct {
-	pool *sync.Pool
+	limited uint
+	worker  uint
+	pool    *sync.Pool
 }
 
 func NewCtxPool(newFunc func() core.Context) core.CtxPool {
