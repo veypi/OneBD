@@ -4,6 +4,7 @@ import (
 	"crypto/tls"
 	"github.com/lightjiang/OneBD/config"
 	"github.com/lightjiang/OneBD/core"
+	"github.com/lightjiang/OneBD/libs/router"
 	"go.uber.org/zap"
 	"golang.org/x/net/netutil"
 	"net"
@@ -12,7 +13,6 @@ import (
 
 type Application struct {
 	config   *config.Config
-	ctxPool  core.CtxPool
 	server   *http.Server
 	listener net.Listener
 	router   core.Router
@@ -45,28 +45,11 @@ func NewApplication(cfg *config.Config) *Application {
 		// TODO
 		ConnContext: nil,
 	}
-
-	// 判断是否使用内置context
-	newCtx := func() core.Context {
-		return NewContext(app)
-	}
-	if cfg.NewCtx != nil {
-		newCtx = cfg.NewCtx
-	}
-
-	// 判断是否使用内置ctx pool
-	if cfg.CtxPool != nil {
-		app.ctxPool = cfg.CtxPool
-		app.ctxPool.SetCtx(newCtx)
-	} else {
-		app.ctxPool = NewCtxPool(newCtx)
-	}
-
 	// 判断是否使用内置路由
 	if cfg.Router != nil {
 		app.router = cfg.Router
 	} else {
-		app.router = NewRouter(app)
+		app.router = router.NewMainRouter(app)
 	}
 	app.server.Handler = app.router
 	return app

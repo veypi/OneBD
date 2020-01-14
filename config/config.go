@@ -20,8 +20,6 @@ type Config struct {
 	TlsCfg        *tls.Config
 	// 最大连接数量 为非正数 则不限制
 	MaxConnections int
-	NewCtx         func() core.Context
-	CtxPool        core.CtxPool
 	Router         core.Router
 }
 

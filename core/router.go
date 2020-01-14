@@ -7,6 +7,6 @@ import (
 
 type Router interface {
 	SubRouter(name string) Router
-	DisableMethod(methods ...rfc.Method)
+	Set(prefix string, hp HandlerPool, allowedMethods ...rfc.Method)
 	ServeHTTP(http.ResponseWriter, *http.Request)
 }
