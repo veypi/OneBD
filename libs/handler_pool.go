@@ -30,7 +30,7 @@ func (p *ctxPool) SetCtx(newFunc func() core.Context) {
 
 func (p *ctxPool) Get(w http.ResponseWriter, r *http.Request) core.Context {
 	ctx := p.pool.Get().(core.Context)
-	ctx.Start(w, r)
+	ctx.Start()
 	return ctx
 }
 

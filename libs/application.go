@@ -25,6 +25,7 @@ func NewApplication(cfg *config.Config) *Application {
 	if cfg == nil {
 		cfg = config.DefaultConfig()
 	}
+	cfg.BuildLogger()
 	app := &Application{
 		config: cfg,
 	}
