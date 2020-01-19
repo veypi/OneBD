@@ -91,5 +91,4 @@ func Build() *zap.Logger {
 	// 构造日志
 	logger := zap.New(core, caller, trace)
 	return logger
-
 }

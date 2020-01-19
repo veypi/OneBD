@@ -1,19 +1,18 @@
 package router
 
 import (
-	"fmt"
-	"github.com/lightjiang/OneBD/config"
 	"github.com/lightjiang/OneBD/core"
+	"github.com/lightjiang/OneBD/libs/hpool"
 	"github.com/lightjiang/OneBD/libs/meta"
 	"github.com/lightjiang/OneBD/libs/oerr"
 	"github.com/lightjiang/OneBD/rfc"
 	"github.com/lightjiang/OneBD/utils"
 	"go.uber.org/zap"
 	"net/http"
-	"strings"
+	"time"
 )
 
-var cfg *config.Config
+var app core.AppInfo
 var logger *zap.Logger
 var baseRouter *route
 
@@ -31,22 +30,24 @@ type route struct {
 }
 
 // NewRouter allowedMethods 为空时默认所有方法皆允许
-func NewMainRouter(_cfg *config.Config, allowedMethods ...rfc.Method) core.Router {
+func NewMainRouter(_app core.AppInfo) core.Router {
 	if baseRouter == nil {
 		baseRouter = &route{}
 	}
-	cfg = _cfg
-	logger = cfg.Logger
-	baseRouter.EnableMethod(allowedMethods...)
+	app = _app
+	logger = app.Logger()
 	return baseRouter
 }
-func (r *route) Set(prefix string, hp core.HandlerPool, allowedMethods ...rfc.Method) {
+func (r *route) Set(prefix string, fc func() core.Handler, allowedMethods ...rfc.Method) {
 	tmp := route{
 		prefix:      prefix,
 		root:        r,
-		mainHandler: hp,
+		mainHandler: hpool.NewHandlerPool(fc, app),
 	}
-	tmp.EnableMethod(allowedMethods...)
+	if len(allowedMethods) == 0 {
+		allowedMethods = []rfc.Method{rfc.MethodAll}
+	}
+	tmp.enableMethod(allowedMethods...)
 	r.subRouters = append(r.subRouters, &tmp)
 }
 
@@ -81,20 +82,39 @@ func (r *route) match(url string) *route {
 	- 3 : w.Write(data)
 */
 func (r *route) ServeHTTP(w http.ResponseWriter, req *http.Request) {
-	logger.Info(strings.Join([]string{req.RequestURI, " <- ", req.RemoteAddr}, ""))
+	defer func() {
+		// 以防各种statusFunc出问题
+		if err := recover(); err != nil {
+			logger.Error("panic error", zap.Any("err", err))
+		}
+	}()
+	logger.Info(req.RequestURI + " <- " + req.RemoteAddr)
+	now := time.Now()
 	hp := r.match(req.URL.Path)
+	m := meta.Acquire(w, req, app)
 	if hp != nil {
 		handler := hp.mainHandler.Acquire()
-		requestCircle(handler, w, req)
-		r.FireOnStatus(handler.Meta().Status(), handler.Meta())
+		func() {
+			defer func() {
+				if err := recover(); err != nil {
+					logger.Error("panic error", zap.Any("err", err))
+					handler.Meta().SetStatus(rfc.StatusInternalServerError)
+				}
+			}()
+			requestCircle(handler, m)
+		}()
+		r.fireOnStatus(handler.Meta().Status(), handler.Meta())
+		hp.mainHandler.Release(handler)
+
 	} else {
-		r.FireOnStatus(rfc.StatusNotFound, meta.New(w, req))
+		r.fireOnStatus(rfc.StatusNotFound, m)
 		w.WriteHeader(int(rfc.StatusNotFound))
 	}
-	w.Write([]byte(fmt.Sprintf("%#v", req.URL)))
+	meta.Release(m)
+	logger.Info(req.RequestURI+" -> "+req.RemoteAddr, zap.Int64("delta/us", time.Now().Sub(now).Microseconds()))
 }
 
-func (r *route) EnableMethod(methods ...rfc.Method) {
+func (r *route) enableMethod(methods ...rfc.Method) {
 	if r.allowedMethods == nil {
 		r.allowedMethods = make(map[rfc.Method]bool)
 	}
@@ -103,7 +123,7 @@ func (r *route) EnableMethod(methods ...rfc.Method) {
 	}
 }
 
-func (r *route) DisableMethod(methods ...rfc.Method) {
+func (r *route) disableMethod(methods ...rfc.Method) {
 	if r.allowedMethods == nil {
 		r.allowedMethods = make(map[rfc.Method]bool)
 	}
@@ -126,8 +146,12 @@ func (r *route) SetNotFoundFunc(fc core.MetaFunc) {
 	r.SetStatusFunc(rfc.StatusNotFound, fc)
 }
 
+func (r *route) SetInternalErrorFunc(fc core.MetaFunc) {
+	r.SetStatusFunc(rfc.StatusInternalServerError, fc)
+}
+
 // 递归向上直到触发或到树顶
-func (r *route) FireOnStatus(status rfc.Status, m core.Meta) {
+func (r *route) fireOnStatus(status rfc.Status, m core.Meta) {
 	if _, ok := statusFuncCache[status]; !ok {
 		return
 	}
@@ -139,17 +163,17 @@ func (r *route) FireOnStatus(status rfc.Status, m core.Meta) {
 		}
 	}
 	if r.root != nil {
-		r.root.FireOnStatus(status, m)
+		r.root.fireOnStatus(status, m)
 	}
 }
 
-func requestCircle(handler core.Handler, w http.ResponseWriter, r *http.Request) {
+func requestCircle(handler core.Handler, m core.Meta) {
 	defer func() {
 		handler.TryReset()
 	}()
 	var data interface{}
 	var err error
-	err = handler.Init(w, r)
+	err = handler.Init(m)
 	if err != nil {
 		handler.OnError(err)
 		return

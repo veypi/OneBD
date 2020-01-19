@@ -49,7 +49,7 @@ func NewApplication(cfg *config.Config) *Application {
 	if cfg.Router != nil {
 		app.router = cfg.Router
 	} else {
-		app.router = router.NewMainRouter(app.Config())
+		app.router = router.NewMainRouter(app)
 	}
 	app.server.Handler = app.router
 	return app
