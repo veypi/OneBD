@@ -20,7 +20,7 @@ const (
 	// human review.
 	WarnLevel
 	// ErrorLevel logs are high-priority. If an application is running smoothly,
-	// it shouldn't generate any error-level logs.
+	// it shouldn't generate any oerr-level logs.
 	ErrorLevel
 	// DPanicLevel logs are particularly important errors. In development the
 	// logger panics after writing the message.

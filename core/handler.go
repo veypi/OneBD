@@ -6,7 +6,8 @@ import (
 )
 
 type Handler interface {
-	// 请求生命周期 init -> get/post/etc  -> finished -> onResponse/onError(返回处理或错误同一处理) -> tryReset
+	// 请求生命周期 init -> get/post/etc  -> finished -> onResponse(返回处理) -> tryReset
+	// 一旦某一周期返回会触发OnError 接口 并结束
 	// init 方法最好调用TryRest 确保重置过
 	Init(w http.ResponseWriter, r *http.Request) error
 	Get() (interface{}, error)
@@ -14,7 +15,9 @@ type Handler interface {
 	Put() (interface{}, error)
 	Patch() (interface{}, error)
 	Head() (interface{}, error)
+	Options() (interface{}, error)
 	Delete() (interface{}, error)
+	Trace() (interface{}, error)
 	Finished() error
 	OnResponse(data interface{})
 	OnError(err error)
@@ -24,10 +27,19 @@ type Handler interface {
 	Meta() Meta
 }
 
-// Meta handler 辅助处理单元
+// 元处理函数,非周期处理下对request 做处理
+type MetaFunc func(m Meta)
+
+// Meta 请求辅助处理单元
 type Meta interface {
+	// 生命周期 Init->TryReset
+	Init(w http.ResponseWriter, r *http.Request)
+	TryReset()
 	Method() rfc.Method
 	SetStatus(status rfc.Status)
 	Status() rfc.Status
-	SetCookie(key, value string)
+	SetHeader(key, value string)
+	// 根据设计哲学，不提供cookie 相关处理函数
+	// 必要附带信息请手动添加到header里，如各种权限token
+	//SetCookie(key, value string)
 }

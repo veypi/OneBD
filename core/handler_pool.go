@@ -1,9 +1,7 @@
 package core
 
-import "net/http"
-
 type HandlerPool interface {
 	SetNew(newFunc func() Handler)
-	Acquire(w http.ResponseWriter, r *http.Request) Handler
+	Acquire() Handler
 	Release(h Handler)
 }

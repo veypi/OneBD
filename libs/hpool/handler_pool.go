@@ -2,7 +2,6 @@ package hpool
 
 import (
 	"github.com/lightjiang/OneBD/core"
-	"net/http"
 	"sync"
 )
 
@@ -26,9 +25,8 @@ func (p *handlerPool) SetNew(newFunc func() core.Handler) {
 	}
 }
 
-func (p *handlerPool) Acquire(w http.ResponseWriter, r *http.Request) core.Handler {
+func (p *handlerPool) Acquire() core.Handler {
 	ctx := p.pool.Get().(core.Handler)
-	ctx.Init(w, r)
 	return ctx
 }
 

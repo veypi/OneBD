@@ -7,7 +7,6 @@ const (
 	MethodPost    Method = "POST"
 	MethodPut     Method = "PUT"
 	MethodDelete  Method = "DELETE"
-	MethodConnect Method = "CONNECT"
 	MethodHead    Method = "HEAD"
 	MethodPatch   Method = "PATCH"
 	MethodOptions Method = "OPTIONS"
