@@ -9,21 +9,21 @@
 
 > 整体应用的全局配置和管理
 
-- context
+- handler 
 
 > 请求的周期管理
 
-- ctxPool
+- handlerPool
 
-> context 缓存池 避免每次去创建ctx
+> handler缓存池 避免每次去创建
 
 - router
 
 > 路由 根据请求路径匹配正确的handler去处理
 
-- handler
+- meta 
 
-> 最终处理请求的对象
+> 辅助handler处理request和response 
 
 
 ## TODO:
