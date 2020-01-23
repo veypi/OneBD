@@ -2,7 +2,6 @@ package libs
 
 import (
 	"crypto/tls"
-	"github.com/lightjiang/OneBD/config"
 	"github.com/lightjiang/OneBD/core"
 	"github.com/lightjiang/OneBD/libs/router"
 	"go.uber.org/zap"
@@ -12,7 +11,7 @@ import (
 )
 
 type Application struct {
-	config   *config.Config
+	config   *core.Config
 	server   *http.Server
 	listener net.Listener
 	router   core.Router
@@ -21,9 +20,9 @@ type Application struct {
 	//
 }
 
-func NewApplication(cfg *config.Config) *Application {
+func NewApplication(cfg *core.Config) *Application {
 	if cfg == nil {
-		cfg = config.DefaultConfig()
+		cfg = core.DefaultConfig()
 	}
 	cfg.BuildLogger()
 	app := &Application{
@@ -63,7 +62,7 @@ func (app *Application) Router() core.Router {
 	return app.router
 }
 
-func (app *Application) Config() *config.Config {
+func (app *Application) Config() *core.Config {
 	return app.config
 }
 

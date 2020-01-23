@@ -1,27 +1,34 @@
 package meta
 
 import (
+	"bytes"
 	"github.com/lightjiang/OneBD/core"
 	"github.com/lightjiang/OneBD/rfc"
+	"github.com/lightjiang/OneBD/utils"
+	"go.uber.org/zap"
+	"io"
 	"net/http"
 	"sync"
-	"sync/atomic"
 )
 
 var pool = sync.Pool{
 	New: func() interface{} {
-		return &payLoad{}
+		var p core.Meta
+		p = &payLoad{}
+		return p
 	},
 }
 
 // payLoad 请求基本处理包
 type payLoad struct {
-	empty       uint32
+	empty       utils.SafeBool
 	app         core.AppInfo
 	writer      http.ResponseWriter
 	request     *http.Request
+	buf         bytes.Buffer
 	status      rfc.Status
-	ifSetStatus bool
+	ifSetStatus utils.SafeBool
+	ifFlush     utils.SafeBool
 }
 
 func (p *payLoad) Init(w http.ResponseWriter, r *http.Request, app core.AppInfo) {
@@ -30,8 +37,35 @@ func (p *payLoad) Init(w http.ResponseWriter, r *http.Request, app core.AppInfo)
 	p.writer = w
 	p.request = r
 	p.status = rfc.StatusOK
-	p.ifSetStatus = false
-	atomic.StoreUint32(&p.empty, 0)
+	p.empty.ForceSetFalse()
+	p.ifSetStatus.ForceSetFalse()
+	p.ifFlush.ForceSetFalse()
+}
+
+func (p *payLoad) TryReset() {
+	if p.empty.SetTrue() {
+		p.writer = nil
+		p.request = nil
+		p.ResetBuf()
+	}
+}
+
+func (p *payLoad) RemoteAddr() string {
+	return p.request.RemoteAddr
+}
+
+func (p *payLoad) RequestPath() string {
+	return p.request.URL.Path
+}
+
+// url 后缀参数, 惰性解析
+func (p *payLoad) Query(key string) string {
+	return ""
+}
+
+// url 路径内参数, 有router 给出
+func (p *payLoad) Params(key string) string {
+	return ""
 }
 
 func (p *payLoad) Method() rfc.Method {
@@ -47,15 +81,45 @@ func (p *payLoad) Status() rfc.Status {
 }
 
 func (p *payLoad) SetHeader(key, value string) {
-	if p.ifSetStatus {
+	if p.ifSetStatus.IfTrue() {
+		p.app.Logger().Warn("try to set header failed, must be called before flush")
+		return
+	}
+	p.writer.Header().Set(key, value)
+}
+
+func (p *payLoad) flushStatus() {
+	if p.ifSetStatus.SetTrue() {
+		p.writer.WriteHeader(int(p.status))
 	}
 }
 
-func (p *payLoad) TryReset() {
-	if atomic.CompareAndSwapUint32(&p.empty, 1, 0) {
-		p.writer = nil
-		p.request = nil
+func (p *payLoad) StreamRead(wrt io.Writer) {
+	io.Copy(wrt, p.request.Body)
+}
+
+func (p *payLoad) StreamWrite(src io.Reader) {
+	if p.ifFlush.SetTrue() {
+		p.flushStatus()
+		io.Copy(p.writer, src)
 	}
+}
+
+func (p *payLoad) Flush() {
+	if p.ifFlush.SetTrue() {
+		p.flushStatus()
+		p.buf.WriteTo(p.writer)
+	} else {
+		p.app.Logger().Warn(p.request.URL.Path+":"+p.request.Method+" -> payload has flushed", zap.String("addr", p.RemoteAddr()))
+	}
+}
+
+func (p *payLoad) Write(wrt []byte) {
+	p.buf.Write(wrt)
+}
+
+func (p *payLoad) ResetBuf() {
+	p.buf.Reset()
 }
 
 func Acquire(w http.ResponseWriter, r *http.Request, app core.AppInfo) core.Meta {

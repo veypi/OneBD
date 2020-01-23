@@ -4,20 +4,19 @@ import (
 	"github.com/lightjiang/OneBD/core"
 	"github.com/lightjiang/OneBD/rfc"
 	"github.com/lightjiang/OneBD/utils"
-	"sync/atomic"
 )
 
 //BaseHandler  请求 基本处理流程
 type BaseHandler struct {
 	utils.FastLocker
-	empty   uint32
+	empty   utils.SafeBool
 	payLoad core.Meta
 }
 
 func (h *BaseHandler) Init(m core.Meta) error {
 	h.TryReset()
 	h.payLoad = m
-	atomic.StoreUint32(&h.empty, 0)
+	h.empty.ForceSetFalse()
 	return nil
 }
 
@@ -72,7 +71,7 @@ func (h *BaseHandler) OnError(err error) {
 }
 
 func (h *BaseHandler) TryReset() {
-	if atomic.CompareAndSwapUint32(&h.empty, 1, 0) {
+	if h.empty.SetTrue() {
 		// 确保payload被释放
 		h.payLoad = nil
 		// 确保锁释放

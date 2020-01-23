@@ -49,16 +49,20 @@ const (
 /*
 	-1: 协议参数
 	-2: 接口参数
+	-3: 函数参数
 */
 const (
 	MethodNotSupport Code = 61111
 	MethodNotAllowed Code = 61121
+
+	UrlPatternNotSupport Code = 63117
 )
 
 var codeMap = map[Code]string{
-	Unknown:          "unknown error",
-	MethodNotSupport: "this http method is not supported",
-	MethodNotAllowed: "this http method is not allowed",
+	Unknown:              "unknown error",
+	MethodNotSupport:     "this http method is not supported",
+	MethodNotAllowed:     "this http method is not allowed",
+	UrlPatternNotSupport: "this router's url pattern is not supported.",
 }
 
 func (c Code) String() string {

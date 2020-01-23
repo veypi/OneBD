@@ -1,8 +1,7 @@
-package config
+package core
 
 import (
 	"crypto/tls"
-	"github.com/lightjiang/OneBD/core"
 	"github.com/lightjiang/OneBD/utils/log"
 	"go.uber.org/zap"
 )
@@ -19,8 +18,10 @@ type Config struct {
 	PostMaxMemory int64
 	TlsCfg        *tls.Config
 	// 最大连接数量 为非正数 则不限制
-	MaxConnections int
-	Router         core.Router
+	MaxConnections                 int
+	Router                         Router
+	DisableRouterPathCaseSensitive bool
+	DisableRouterPathCorrection    bool
 }
 
 func (c *Config) IsValid() *Config {

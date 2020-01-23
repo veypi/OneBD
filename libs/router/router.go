@@ -9,10 +9,13 @@ import (
 	"github.com/lightjiang/OneBD/utils"
 	"go.uber.org/zap"
 	"net/http"
+	"regexp"
+	"strings"
 	"time"
 )
 
 var app core.AppInfo
+var cfg *core.Config
 var logger *zap.Logger
 var baseRouter *route
 
@@ -22,6 +25,7 @@ var statusFuncCache = make(map[rfc.Status]bool)
 type route struct {
 	utils.FastLocker
 	prefix         string // asd/{id:type}/
+	prefixRegexp   *regexp.Regexp
 	root           *route
 	subRouters     []*route
 	allowedMethods map[rfc.Method]bool
@@ -35,14 +39,25 @@ func NewMainRouter(_app core.AppInfo) core.Router {
 		baseRouter = &route{}
 	}
 	app = _app
+	cfg = _app.Config()
 	logger = app.Logger()
 	return baseRouter
 }
 func (r *route) Set(prefix string, fc func() core.Handler, allowedMethods ...rfc.Method) {
+	prefix = strings.TrimSuffix(r.prefix, "/") + "/" + strings.TrimPrefix(prefix, "/")
+	if !cfg.DisableRouterPathCorrection && len(prefix) > 1 {
+		prefix = strings.TrimSuffix(prefix, "/")
+	}
+	logger.Info("add router: "+prefix, zap.Strings("m", allowedMethods))
 	tmp := route{
 		prefix:      prefix,
 		root:        r,
 		mainHandler: hpool.NewHandlerPool(fc, app),
+	}
+	if re, err := regexp.Compile("^" + prefix + "$"); err != nil {
+		panic(oerr.UrlPatternNotSupport.Attach(err))
+	} else {
+		tmp.prefixRegexp = re
 	}
 	if len(allowedMethods) == 0 {
 		allowedMethods = []rfc.Method{rfc.MethodAll}
@@ -52,25 +67,35 @@ func (r *route) Set(prefix string, fc func() core.Handler, allowedMethods ...rfc
 }
 
 func (r *route) SubRouter(prefix string) core.Router {
+	prefix = strings.TrimSuffix(r.prefix, "/") + "/" + strings.TrimPrefix(prefix, "/")
+	if !cfg.DisableRouterPathCorrection && len(prefix) > 1 {
+		prefix = strings.TrimSuffix(prefix, "/")
+	}
 	tmp := &route{
 		prefix: prefix,
 		root:   r,
 	}
 	r.subRouters = append(r.subRouters, tmp)
-	return r
+	return tmp
 }
 
 func (r *route) match(url string) *route {
 	// TODO:: 是否有必要对路由查询结果做缓存
-	if url == r.prefix {
-		return r
-	}
+	// TODO:: 深度优先还是广度优先
 	var tmp *route
 	for _, item := range r.subRouters {
 		tmp = item.match(url)
 		if tmp != nil {
 			return tmp
 		}
+	}
+	if r.mainHandler == nil || r.prefixRegexp == nil {
+		return nil
+	}
+	ifMatch := r.prefixRegexp.MatchString(url)
+	if ifMatch {
+		logger.Info("match url: " + url + ":" + r.prefix)
+		return r
 	}
 	return nil
 }
@@ -88,9 +113,17 @@ func (r *route) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 			logger.Error("panic error", zap.Any("err", err))
 		}
 	}()
-	logger.Info(req.RequestURI + " <- " + req.RemoteAddr)
+	//logger.Debug(req.RequestURI + " <- " + req.RemoteAddr)
 	now := time.Now()
-	hp := r.match(req.URL.Path)
+	urlPath := req.URL.Path
+	if cfg.DisableRouterPathCaseSensitive {
+		urlPath = strings.ToLower(urlPath)
+	}
+	if !cfg.DisableRouterPathCorrection && len(urlPath) > 1 {
+		urlPath = strings.TrimSuffix(urlPath, "/")
+	}
+	req.URL.Path = urlPath
+	hp := r.match(urlPath)
 	m := meta.Acquire(w, req, app)
 	if hp != nil {
 		handler := hp.mainHandler.Acquire()
@@ -98,20 +131,23 @@ func (r *route) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 			defer func() {
 				if err := recover(); err != nil {
 					logger.Error("panic error", zap.Any("err", err))
-					handler.Meta().SetStatus(rfc.StatusInternalServerError)
+					m.SetStatus(rfc.StatusInternalServerError)
 				}
 			}()
 			requestCircle(handler, m)
 		}()
-		r.fireOnStatus(handler.Meta().Status(), handler.Meta())
 		hp.mainHandler.Release(handler)
+		r.fireOnStatus(m.Status(), m)
 
 	} else {
+		m.SetStatus(rfc.StatusNotFound)
 		r.fireOnStatus(rfc.StatusNotFound, m)
-		w.WriteHeader(int(rfc.StatusNotFound))
 	}
+	m.Flush()
 	meta.Release(m)
-	logger.Info(req.RequestURI+" -> "+req.RemoteAddr, zap.Int64("delta/us", time.Now().Sub(now).Microseconds()))
+	logger.Debug(req.Method+":"+req.URL.Path,
+		zap.Int64("delta/us", time.Now().Sub(now).Microseconds()),
+		zap.String("addr", req.RemoteAddr))
 }
 
 func (r *route) enableMethod(methods ...rfc.Method) {

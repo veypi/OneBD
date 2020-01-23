@@ -1,6 +1,6 @@
 package rfc
 
-type Method string
+type Method = string
 
 const (
 	MethodGet     Method = "GET"
@@ -15,7 +15,7 @@ const (
 	MethodAll Method = "all"
 )
 
-type Status uint
+type Status = uint
 
 // copy from iris
 const (
