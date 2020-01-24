@@ -12,7 +12,7 @@ const (
 	MethodOptions Method = "OPTIONS"
 	MethodTrace   Method = "TRACE"
 
-	MethodAll Method = "all"
+	MethodAll Method = "ALL"
 )
 
 type Status = uint

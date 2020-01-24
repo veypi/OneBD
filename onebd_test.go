@@ -1,12 +1,10 @@
 package OneBD
 
 import (
-	"fmt"
 	"github.com/lightjiang/OneBD/core"
 	"github.com/lightjiang/OneBD/libs/handler"
 	"github.com/lightjiang/OneBD/rfc"
 	"github.com/lightjiang/OneBD/utils/log"
-	"regexp"
 	"strings"
 	"testing"
 )
@@ -23,9 +21,6 @@ func (h *testHandler) Get() (interface{}, error) {
 }
 
 func TestNew(t *testing.T) {
-	c, _ := regexp.Compile("^/asd$")
-	a := c.MatchString("/asd")
-	fmt.Printf("%+v\n\n\n", a)
 	cfg := &core.Config{
 		Host:           "0.0.0.0:4000",
 		Charset:        "",
@@ -37,10 +32,13 @@ func TestNew(t *testing.T) {
 	cfg.LoggerLevel = log.DebugLevel
 	cfg.BuildLogger()
 	app := New(cfg)
-	app.Router().Set("/", func() core.Handler {
+	newH := func() core.Handler {
 		app.Logger().Info("creating a handler")
 		return &testHandler{}
-	}, rfc.MethodGet, rfc.MethodPost)
+	}
+	app.Router().SubRouter("/asd/sss").Set("asd/xxx", newH, rfc.MethodGet, rfc.MethodPost)
+	app.Router().SubRouter("/asd/sss").Set("asd/zzz", newH, rfc.MethodPost)
+	app.Router().SubRouter("/sss/asd").Set("/123/int:username/str:username", newH)
 	app.Router().SetNotFoundFunc(func(m core.Meta) {
 		app.Logger().Info("checking 404 status")
 		m.Write([]byte(m.RequestPath()))

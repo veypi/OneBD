@@ -13,4 +13,5 @@ type Router interface {
 	SetNotFoundFunc(fc MetaFunc)
 	// 对于内部panic错误， 返回500 错误 并执行相应回调
 	SetInternalErrorFunc(fc MetaFunc)
+	String() string
 }

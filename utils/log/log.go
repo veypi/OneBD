@@ -53,6 +53,8 @@ func EnableFileLog(filePath string) {
 	fileHook.Filename = filePath
 }
 
+var DefaultLogger = Build()
+
 func Build() *zap.Logger {
 	jsonEncoder := zapcore.EncoderConfig{
 		TimeKey:        "time",

@@ -2,6 +2,7 @@ package core
 
 import (
 	"github.com/lightjiang/OneBD/rfc"
+	"go.uber.org/zap"
 	"io"
 	"net/http"
 )
@@ -12,12 +13,16 @@ type MetaFunc func(m Meta)
 // Meta 请求辅助处理单元
 type Meta interface {
 	// 生命周期 Init-> Flush/StreamWrite ->TryReset
-	Init(w http.ResponseWriter, r *http.Request, app AppInfo)
+	Init(w http.ResponseWriter, r *http.Request, params map[string]interface{}, app AppInfo)
 	TryReset()
+	Logger() *zap.Logger
 	RemoteAddr() string
 	RequestPath() string
 	Query(string) string
-	Params(string) string
+	Params(string) interface{}
+	ParamsStr(string) string
+	ParamsInt(string) int
+	ParamsFloat(string) float64
 	Method() rfc.Method
 	SetStatus(status rfc.Status)
 	Status() rfc.Status

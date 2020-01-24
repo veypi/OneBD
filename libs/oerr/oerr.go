@@ -56,6 +56,8 @@ const (
 	MethodNotAllowed Code = 61121
 
 	UrlPatternNotSupport Code = 63117
+	UrlDefinedDuplicate  Code = 63127
+	UrlParamDuplicate    Code = 63137
 )
 
 var codeMap = map[Code]string{
@@ -63,6 +65,8 @@ var codeMap = map[Code]string{
 	MethodNotSupport:     "this http method is not supported",
 	MethodNotAllowed:     "this http method is not allowed",
 	UrlPatternNotSupport: "this router's url pattern is not supported.",
+	UrlDefinedDuplicate:  "this router's url has been defined",
+	UrlParamDuplicate:    "this param defined in router's url duplicated",
 }
 
 func (c Code) String() string {
@@ -74,8 +78,24 @@ func (c Code) String() string {
 }
 
 // 附加错误详细原因
-func (c Code) Attach(err ...error) error {
-	return errors.New(strings.Join([]string{strconv.Itoa(int(c)), ":", c.String(), ":"}, ""))
+func (c Code) Attach(errs ...error) error {
+	newErrs := make([]string, 0, 5)
+	for _, err := range errs {
+		if err != nil {
+			newErrs = append(newErrs, err.Error())
+		}
+	}
+	return c.AttachStr(newErrs...)
+}
+
+func (c Code) AttachStr(errs ...string) error {
+	msg := strconv.Itoa(int(c)) + ":" + c.String()
+	for _, e := range errs {
+		if e != "" {
+			msg += "\n" + e
+		}
+	}
+	return errors.New(msg)
 }
 
 func OfType(errMsg string) Code {
