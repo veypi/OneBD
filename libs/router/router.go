@@ -1,7 +1,6 @@
 package router
 
 import (
-	"fmt"
 	"github.com/lightjiang/OneBD/core"
 	"github.com/lightjiang/OneBD/libs/hpool"
 	"github.com/lightjiang/OneBD/libs/meta"
@@ -43,14 +42,14 @@ var getRouter, addRouter = func() (func(string) *route, func(*route)) {
 			allRouter[r.fullPath] = r
 			mu.Unlock()
 			r.parsePrefixToFragment()
-			logger.Debug("add router " + r.fullPath)
+			//logger.Debug("add router " + r.fullPath)
 		}
 }()
 
 // url 验证规则
-var urlPattern = regexp.MustCompile("^/[A-Za-z0-9/:]*$")
-var urlParamPattern = regexp.MustCompile("([a-z]*):([A-Za-z0-9]*)")
-var urlParamType = []string{"int", "str", "float"}
+var urlPattern = regexp.MustCompile("^/[A-Za-z0-9/_:]*$")
+var urlParamPattern = regexp.MustCompile("([a-z]*):([A-Za-z0-9_]*)")
+var urlParamType = []string{"", "int", "str", "float"}
 
 // parsePrefix 校验url合法性及初始化url参数
 func parsePrefix(urlParams []string, prefix string) ([]string, string) {
@@ -187,7 +186,7 @@ func (r *route) Set(prefix string, fc func() core.Handler, allowedMethods ...rfc
 	}
 	if tmp.mainHandler != nil {
 		// will raise panic
-		logger.Fatal(oerr.UrlDefinedDuplicate.AttachStr(tmp.fullPath + " has defined at " + tmp.caller).Error())
+		logger.Fatal(oerr.UrlDefinedDuplicate.AttachStr(tmp.fullPath + " has defined at " + utils.CallPath(1)).Error())
 		return
 	}
 	tmp.mainHandler = hpool.NewHandlerPool(fc, app)
@@ -260,6 +259,9 @@ func (r *route) match(pieces []string, params map[string]interface{}) *route {
 	// TODO:: params 被污染
 	var index int = 0
 	var v urlFragment
+	if len(r.piece) > len(pieces) {
+		return nil
+	}
 	for index, v = range r.piece {
 		if v.IsComplex {
 			switch v.Type {
@@ -326,7 +328,6 @@ func (r *route) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	}
 	req.URL.Path = urlPath
 	hp, params := r.Match(urlPath)
-	fmt.Printf("%p %+v\n", hp, params)
 	m := meta.Acquire(w, req, params, app)
 	if hp != nil {
 		handler := hp.mainHandler.Acquire()
