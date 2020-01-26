@@ -329,7 +329,7 @@ func (r *route) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	req.URL.Path = urlPath
 	hp, params := r.Match(urlPath)
 	m := meta.Acquire(w, req, params, app)
-	if hp != nil {
+	if hp != nil && hp.mainHandler != nil {
 		handler := hp.mainHandler.Acquire()
 		func() {
 			defer func() {

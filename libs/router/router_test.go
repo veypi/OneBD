@@ -4,10 +4,14 @@ import (
 	"github.com/lightjiang/OneBD/core"
 	"github.com/lightjiang/OneBD/libs/handler"
 	"github.com/lightjiang/OneBD/rfc"
+	"go.uber.org/zap"
 	"net/http"
 	"strings"
 	"testing"
 )
+
+const paramPrefix = "paramPrefix"
+const checkPath = false
 
 type fakeResponseWriter struct {
 	code int
@@ -29,10 +33,19 @@ func (f *fakeResponseWriter) WriteHeader(statusCode int) {
 }
 
 type testHandler struct {
+	path string
 	handler.BaseHandler
 }
 
 func (h *testHandler) OnResponse(data interface{}) {
+	if checkPath {
+		// 为置换变量可能会触发错误
+		reqPath := h.Meta().RequestPath()
+		reqPath = strings.Replace(reqPath, paramPrefix, ":", -1)
+		if h.path != reqPath {
+			logger.Warn("route error: ", zap.String("request", h.Meta().RequestPath()), zap.String("handle", h.path))
+		}
+	}
 	h.Meta().SetStatus(rfc.StatusOK)
 	h.Meta().Write([]byte(h.Meta().RequestPath()))
 	return
@@ -43,10 +56,11 @@ func githubRouter() *route {
 		prefix:   "/",
 		fullPath: "/",
 	}
-	logger.Info("123")
 	for _, api := range githubAPi {
+		tempPath := api.path
 		r.Set(api.path, func() core.Handler {
-			return &testHandler{}
+			//logger.Info("creating new handler of " + tempPath)
+			return &testHandler{path: tempPath}
 		}, api.methods...)
 	}
 	//logger.Info(r.String())
@@ -60,13 +74,13 @@ func init() {
 	r = githubRouter()
 }
 
-func BenchmarkRoute_Match(b *testing.B) {
+func BenchmarkRoute_GitHub_ALL(b *testing.B) {
 	w := new(fakeResponseWriter)
 	req, _ := http.NewRequest("GET", "/", nil)
 	temPath := ""
 	for i := 0; i < b.N; i++ {
 		for _, api := range githubAPi {
-			temPath = strings.Replace(api.path, ":", "asdasd", -1)
+			temPath = strings.Replace(api.path, ":", paramPrefix, -1)
 			req.URL.Path = temPath
 			req.RequestURI = temPath
 			for _, m := range api.methods {
@@ -79,12 +93,31 @@ func BenchmarkRoute_Match(b *testing.B) {
 	}
 }
 
+func BenchmarkRoute_GitHub_Static(b *testing.B) {
+	w := new(fakeResponseWriter)
+	req, _ := http.NewRequest("GET", "/markdown/raw", nil)
+	for i := 0; i < b.N; i++ {
+		w.body = ""
+		r.ServeHTTP(w, req)
+	}
+}
+func BenchmarkRoute_GitHub_Param1(b *testing.B) {
+	w := new(fakeResponseWriter)
+	tempPath := "/teams/:id/repos"
+	tempPath = strings.Replace(tempPath, ":", paramPrefix, -1)
+	req, _ := http.NewRequest("GET", tempPath, nil)
+	for i := 0; i < b.N; i++ {
+		w.body = ""
+		r.ServeHTTP(w, req)
+	}
+}
+
 func TestRoute_ServeHTTP(t *testing.T) {
 	w := new(fakeResponseWriter)
 	req, _ := http.NewRequest(rfc.MethodGet, "/", nil)
 	temPath := ""
 	for _, api := range githubAPi {
-		temPath = strings.Replace(api.path, ":", "asdasd", -1)
+		temPath = strings.Replace(api.path, ":", paramPrefix, -1)
 		req.URL.Path = temPath
 		req.RequestURI = temPath
 		for _, m := range api.methods {

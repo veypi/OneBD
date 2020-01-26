@@ -16,7 +16,7 @@ type testHandler struct {
 func (h *testHandler) Get() (interface{}, error) {
 	h.Meta().SetHeader("a", "1")
 	h.Meta().Write([]byte(h.Meta().RemoteAddr()))
-	h.Meta().StreamWrite(strings.NewReader("asdasdasd"))
+	h.Meta().StreamWrite(strings.NewReader(h.Meta().ParamsStr("uid")))
 	return nil, nil
 }
 
@@ -36,9 +36,10 @@ func TestNew(t *testing.T) {
 		app.Logger().Info("creating a handler")
 		return &testHandler{}
 	}
+	app.Router().Set("/:uid", newH, rfc.MethodGet)
 	app.Router().SubRouter("/asd/sss").Set("asd/xxx", newH, rfc.MethodGet, rfc.MethodPost)
 	app.Router().SubRouter("/asd/sss").Set("asd/zzz", newH, rfc.MethodPost)
-	app.Router().SubRouter("/sss/asd").Set("/123/int:username/str:username", newH)
+	app.Router().SubRouter("/sss/asd").Set("/123/int:usernsame/str:username", newH)
 	app.Router().SetNotFoundFunc(func(m core.Meta) {
 		app.Logger().Info("checking 404 status")
 		m.Write([]byte(m.RequestPath()))
