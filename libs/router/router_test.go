@@ -53,9 +53,9 @@ func (h *testHandler) OnResponse(data interface{}) {
 
 func githubRouter() *route {
 	r := &route{
-		prefix:   "/",
-		fullPath: "/",
+		trie: &trie{},
 	}
+	r.top = r
 	for _, api := range githubAPi {
 		tempPath := api.path
 		r.Set(api.path, func() core.Handler {
@@ -95,7 +95,7 @@ func BenchmarkRoute_GitHub_ALL(b *testing.B) {
 
 func BenchmarkRoute_GitHub_Static(b *testing.B) {
 	w := new(fakeResponseWriter)
-	req, _ := http.NewRequest("GET", "/markdown/raw", nil)
+	req, _ := http.NewRequest("POST", "/markdown/raw", nil)
 	for i := 0; i < b.N; i++ {
 		w.body = ""
 		r.ServeHTTP(w, req)
@@ -110,6 +110,12 @@ func BenchmarkRoute_GitHub_Param1(b *testing.B) {
 		w.body = ""
 		r.ServeHTTP(w, req)
 	}
+}
+func TestRoute_ServeHTTP2(t *testing.T) {
+	w := new(fakeResponseWriter)
+	req, _ := http.NewRequest("GET", "/markdown/raw", nil)
+	w.body = ""
+	r.ServeHTTP(w, req)
 }
 
 func TestRoute_ServeHTTP(t *testing.T) {

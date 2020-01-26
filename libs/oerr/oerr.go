@@ -92,7 +92,7 @@ func (c Code) AttachStr(errs ...string) error {
 	msg := strconv.Itoa(int(c)) + ":" + c.String()
 	for _, e := range errs {
 		if e != "" {
-			msg += "\n" + e
+			msg += "\n    | " + e
 		}
 	}
 	return errors.New(msg)

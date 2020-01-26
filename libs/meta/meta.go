@@ -29,10 +29,10 @@ type payLoad struct {
 	status      rfc.Status
 	ifSetStatus utils.SafeBool
 	ifFlush     utils.SafeBool
-	params      map[string]interface{}
+	params      map[string]uint
 }
 
-func (p *payLoad) Init(w http.ResponseWriter, r *http.Request, params map[string]interface{}, app core.AppInfo) {
+func (p *payLoad) Init(w http.ResponseWriter, r *http.Request, params map[string]uint, app core.AppInfo) {
 	p.TryReset()
 	p.app = app
 	p.writer = w
@@ -144,7 +144,7 @@ func (p *payLoad) ResetBuf() {
 	p.buf.Reset()
 }
 
-func Acquire(w http.ResponseWriter, r *http.Request, params map[string]interface{}, app core.AppInfo) core.Meta {
+func Acquire(w http.ResponseWriter, r *http.Request, params map[string]uint, app core.AppInfo) core.Meta {
 	m := pool.Get().(core.Meta)
 	m.Init(w, r, params, app)
 	return m
