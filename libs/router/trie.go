@@ -126,6 +126,7 @@ func (t *trie) Match(url string) *trie {
 			if res != nil {
 				return res.Match(url[i:])
 			}
+			break
 		}
 	}
 	return t.subMatch(url)

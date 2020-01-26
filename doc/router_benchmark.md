@@ -63,6 +63,17 @@ BenchmarkVulcan_GithubAll             	   7334	   177448 ns/op	  19894 B/op	    
 
 ## OneBD
 
+> v0.3.0
+
+```bash
+BenchmarkRoute_GitHub_ALL-16              178460             66015 ns/op            5600 B/op         93 allocs/op
+BenchmarkRoute_GitHub_Static-16         53693659               228 ns/op               0 B/op          0 allocs/op
+BenchmarkRoute_GitHub_Param1-16         48497342               261 ns/op               0 B/op          0 allocs/op
+BenchmarkTrie_GitHub_ALL-16               570573             20885 ns/op               0 B/op          0 allocs/op
+BenchmarkTrie_GitHub_Static-16          186756627               63.9 ns/op             0 B/op          0 allocs/op
+BenchmarkTrie_GitHub_Param1-16          142868642               83.5 ns/op             0 B/op          0 allocs/op
+```
+
 > v0.2.0
 
 ```bash
