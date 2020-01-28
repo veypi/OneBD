@@ -19,10 +19,8 @@ type Meta interface {
 	RemoteAddr() string
 	RequestPath() string
 	Query(string) string
-	Params(string) interface{}
-	ParamsStr(string) string
+	Params(string) string
 	ParamsInt(string) int
-	ParamsFloat(string) float64
 	Method() rfc.Method
 	SetStatus(status rfc.Status)
 	Status() rfc.Status

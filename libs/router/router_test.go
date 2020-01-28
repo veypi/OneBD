@@ -3,6 +3,7 @@ package router
 import (
 	"github.com/lightjiang/OneBD/core"
 	"github.com/lightjiang/OneBD/libs/handler"
+	"github.com/lightjiang/OneBD/libs/hpool"
 	"github.com/lightjiang/OneBD/rfc"
 	"go.uber.org/zap"
 	"net/http"
@@ -45,23 +46,23 @@ func (h *testHandler) OnResponse(data interface{}) {
 		if h.path != reqPath {
 			logger.Warn("route error: ", zap.String("request", h.Meta().RequestPath()), zap.String("handle", h.path))
 		}
+		h.Meta().Write([]byte(h.Meta().RequestPath()))
 	}
 	h.Meta().SetStatus(rfc.StatusOK)
-	h.Meta().Write([]byte(h.Meta().RequestPath()))
 	return
 }
 
 func githubRouter() *route {
 	r := &route{
-		trie: &trie{},
+		trie:  &trie{},
+		cycle: DefaultCycle,
 	}
 	r.top = r
 	for _, api := range githubAPi {
 		tempPath := api.path
-		r.Set(api.path, func() core.Handler {
-			//logger.Info("creating new handler of " + tempPath)
+		r.Set(api.path, hpool.NewHandlerPool(func() core.Handler {
 			return &testHandler{path: tempPath}
-		}, api.methods...)
+		}), api.methods...)
 	}
 	//logger.Info(r.String())
 	return r
@@ -80,13 +81,10 @@ var w = new(fakeResponseWriter)
 
 func BenchmarkRoute_GitHub_ALL(b *testing.B) {
 	req, _ = http.NewRequest("GET", "/", nil)
-	temPath = ""
 	for i := 0; i < b.N; i++ {
 		for _, api := range githubAPi {
-			//temPath = strings.Replace(api.path, ":", paramPrefix, -1)
-			temPath = api.path
-			req.URL.Path = temPath
-			req.RequestURI = temPath
+			req.URL.Path = api.path
+			req.RequestURI = api.path
 			for _, m := range api.methods {
 				req.Method = m
 				w.body = ""

@@ -6,7 +6,7 @@ import (
 )
 
 const (
-	Version = "v0.3.0"
+	Version = "v0.3.2"
 )
 
 func New(cfg *core.Config) *libs.Application {

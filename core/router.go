@@ -6,7 +6,8 @@ import (
 )
 
 type Router interface {
-	Set(prefix string, fc func() Handler, allowedMethods ...rfc.Method)
+	SetRequestLifeCycle(cycle RequestLifeCycle)
+	Set(prefix string, fc interface{}, allowedMethods ...rfc.Method)
 	SubRouter(name string) Router
 	ServeHTTP(http.ResponseWriter, *http.Request)
 	SetStatusFunc(status rfc.Status, rf MetaFunc)
@@ -15,3 +16,5 @@ type Router interface {
 	SetInternalErrorFunc(fc MetaFunc)
 	String() string
 }
+
+type RequestLifeCycle func(interface{}, Meta)

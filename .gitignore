@@ -48,8 +48,8 @@ _testmain.go
 *.exe
 *.test
 *.prof
-.idea/
 build/
 Session.vim
 
 _example
+cpu.out

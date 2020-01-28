@@ -8,6 +8,7 @@ import (
 	"go.uber.org/zap"
 	"io"
 	"net/http"
+	"strconv"
 	"sync"
 )
 
@@ -21,15 +22,18 @@ var pool = sync.Pool{
 
 // payLoad 请求基本处理包
 type payLoad struct {
-	empty       utils.SafeBool
-	app         core.AppInfo
-	writer      http.ResponseWriter
-	request     *http.Request
-	buf         bytes.Buffer
-	status      rfc.Status
-	ifSetStatus utils.SafeBool
-	ifFlush     utils.SafeBool
-	params      map[string]uint
+	mu             utils.FastLocker
+	empty          utils.SafeBool
+	app            core.AppInfo
+	writer         http.ResponseWriter
+	request        *http.Request
+	buf            bytes.Buffer
+	status         rfc.Status
+	ifSetStatus    utils.SafeBool
+	ifFlush        utils.SafeBool
+	params         map[string]uint
+	paramsIndex    map[uint]string
+	resolvedParams map[string]string
 }
 
 func (p *payLoad) Init(w http.ResponseWriter, r *http.Request, params map[string]uint, app core.AppInfo) {
@@ -48,6 +52,8 @@ func (p *payLoad) TryReset() {
 	if p.empty.SetTrue() {
 		p.writer = nil
 		p.request = nil
+		p.paramsIndex = nil
+		p.resolvedParams = nil
 		p.ResetBuf()
 	}
 }
@@ -69,24 +75,32 @@ func (p *payLoad) Query(key string) string {
 	return ""
 }
 
-// url 路径内参数, 由router 给出
-func (p *payLoad) Params(key string) interface{} {
-	v, _ := p.params[key]
-	return v
-}
-
-func (p *payLoad) ParamsStr(key string) string {
-	v, _ := p.Params(key).(string)
-	return v
+// url 路径内参数, 由router 给出 惰性解析
+func (p *payLoad) Params(key string) string {
+	p.mu.Lock()
+	if len(p.params) > 0 && len(p.paramsIndex) == 0 {
+		p.paramsIndex = make(map[uint]string)
+		for i, v := range p.params {
+			p.paramsIndex[v] = i
+		}
+		started := false
+		//startedIdx := 2
+		for _, v := range p.RequestPath() {
+			if v == '/' {
+				if started {
+					started = false
+				} else {
+					started = true
+				}
+			}
+		}
+	}
+	p.mu.Unlock()
+	return ""
 }
 
 func (p *payLoad) ParamsInt(key string) int {
-	v, _ := p.Params(key).(int)
-	return v
-}
-
-func (p *payLoad) ParamsFloat(key string) float64 {
-	v, _ := p.Params(key).(float64)
+	v, _ := strconv.Atoi(p.Params(key))
 	return v
 }
 

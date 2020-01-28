@@ -17,7 +17,8 @@ type trie struct {
 	parent   *trie
 	wildcard *trie
 	colon    *trie
-	subTrie  map[string]*trie
+	// TODO:: pprof 显示map读取占据最多时间，每一级都有一次读操作，考虑是否使用slice降低每次读取时间，还是使用缓存，降低读取次数
+	subTrie map[string]*trie
 }
 
 func (t *trie) String() string {

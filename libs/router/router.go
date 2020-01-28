@@ -2,7 +2,6 @@ package router
 
 import (
 	"github.com/lightjiang/OneBD/core"
-	"github.com/lightjiang/OneBD/libs/hpool"
 	"github.com/lightjiang/OneBD/libs/meta"
 	"github.com/lightjiang/OneBD/libs/oerr"
 	"github.com/lightjiang/OneBD/rfc"
@@ -26,8 +25,13 @@ type route struct {
 	trie          *trie
 	root          *route
 	top           *route
+	cycle         core.RequestLifeCycle
 	subRouters    []*route
 	otherHandlers map[rfc.Status]core.MetaFunc
+}
+
+func (r *route) SetRequestLifeCycle(cycle core.RequestLifeCycle) {
+	r.cycle = cycle
 }
 
 func (r *route) String() string {
@@ -45,7 +49,8 @@ func (r *route) AbsPrefix() string {
 func NewMainRouter(_app core.AppInfo) core.Router {
 	if baseRouter == nil {
 		baseRouter = &route{
-			trie: &trie{},
+			trie:  &trie{},
+			cycle: DefaultCycle,
 		}
 		baseRouter.top = baseRouter
 	}
@@ -55,13 +60,13 @@ func NewMainRouter(_app core.AppInfo) core.Router {
 	return baseRouter
 }
 
-func (r *route) Set(prefix string, fc func() core.Handler, allowedMethods ...rfc.Method) {
+func (r *route) Set(prefix string, fc interface{}, allowedMethods ...rfc.Method) {
 	if len(allowedMethods) == 0 {
 		allowedMethods = []rfc.Method{rfc.MethodGet}
 	}
 	prefix = r.AbsPrefix() + prefix
 	for _, m := range allowedMethods {
-		r.top.trie.Add("/"+m+prefix, hpool.NewHandlerPool(fc))
+		r.top.trie.Add("/"+m+prefix, fc)
 	}
 }
 
@@ -81,22 +86,22 @@ func (r *route) SubRouter(prefix string) core.Router {
 	- 3 : w.Write(data)
 */
 func (r *route) ServeHTTP(w http.ResponseWriter, req *http.Request) {
+	var t *trie
+	var m core.Meta
 	defer func() {
 		// 以防各种statusFunc出问题
 		if err := recover(); err != nil {
 			logger.Error("panic error", zap.Any("err", err))
+		} else if m != nil {
+			meta.Release(m)
 		}
 	}()
 	//logger.Debug(req.RequestURI + " <- " + req.RemoteAddr)
 	//now := time.Now()
-	var t *trie
-	var m core.Meta
 	t = r.trie.Match("/" + req.Method + req.URL.Path)
 	if t != nil && t.handler != nil {
 		m = meta.Acquire(w, req, t.params, app)
-		handler := t.handler.(core.HandlerPool).Acquire()
-		requestCircle(handler, m)
-		t.handler.(core.HandlerPool).Release(handler)
+		r.cycle(t.handler, m)
 		r.fireOnStatus(m.Status(), m)
 
 	} else {
@@ -105,8 +110,8 @@ func (r *route) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 		r.fireOnStatus(rfc.StatusNotFound, m)
 	}
 	m.Flush()
-	meta.Release(m)
-	//logger.Debug(req.Method+":"+req.URL.Path,
+	//logger.Debug(req.URL.Path,
+	//	zap.String("method", req.Method),
 	//	zap.Int64("delta/us", time.Now().Sub(now).Microseconds()),
 	//	zap.String("addr", req.RemoteAddr))
 }
@@ -146,13 +151,24 @@ func (r *route) fireOnStatus(status rfc.Status, m core.Meta) {
 	}
 }
 
-func requestCircle(handler core.Handler, m core.Meta) {
+func DefaultCycle(fc interface{}, m core.Meta) {
 	defer func() {
 		if err := recover(); err != nil {
 			logger.Error("panic error", zap.Any("err", err))
 			m.SetStatus(rfc.StatusInternalServerError)
 		}
 	}()
+	switch fc := fc.(type) {
+	case core.HandlerPool:
+		hPoolCycle(fc, m)
+	case func() core.Handler:
+		handleCycle(fc(), m)
+	case core.MetaFunc:
+		fc(m)
+	}
+}
+
+func handleCycle(handler core.Handler, m core.Meta) {
 	var data interface{}
 	var err error
 	err = handler.Init(m)
@@ -191,4 +207,10 @@ func requestCircle(handler core.Handler, m core.Meta) {
 	}
 	handler.OnResponse(data)
 	handler.TryReset()
+}
+
+func hPoolCycle(hp core.HandlerPool, m core.Meta) {
+	h := hp.Acquire()
+	handleCycle(h, m)
+	hp.Release(h)
 }

@@ -63,15 +63,36 @@ BenchmarkVulcan_GithubAll             	   7334	   177448 ns/op	  19894 B/op	    
 
 ## OneBD
 
+> v0.3.2
+性能有些微下降
+```bash
+BenchmarkRoute_GitHub_ALL-16               70492             83404 ns/op            4995 B/op         93 allocs/op
+BenchmarkRoute_GitHub_Static-16         19693958               301 ns/op               0 B/op          0 allocs/op
+BenchmarkRoute_GitHub_Param1-16         19106601               329 ns/op               0 B/op          0 allocs/op
+BenchmarkTrie_GitHub_ALL-16               276162             21662 ns/op               0 B/op          0 allocs/op
+BenchmarkTrie_GitHub_Static-16          90452186                64.6 ns/op             0 B/op          0 allocs/op
+BenchmarkTrie_GitHub_Param1-16          71636491                83.4 ns/op             0 B/op          0 allocs/op
+```
+
 > v0.3.0
 
+// 日志会极大影响性能，加上日志路由性能会下降一倍
 ```bash
-BenchmarkRoute_GitHub_ALL-16              178460             66015 ns/op            5600 B/op         93 allocs/op
-BenchmarkRoute_GitHub_Static-16         53693659               228 ns/op               0 B/op          0 allocs/op
-BenchmarkRoute_GitHub_Param1-16         48497342               261 ns/op               0 B/op          0 allocs/op
-BenchmarkTrie_GitHub_ALL-16               570573             20885 ns/op               0 B/op          0 allocs/op
-BenchmarkTrie_GitHub_Static-16          186756627               63.9 ns/op             0 B/op          0 allocs/op
-BenchmarkTrie_GitHub_Param1-16          142868642               83.5 ns/op             0 B/op          0 allocs/op
+# router 带日志 输出请求路径和请求消耗时间
+BenchmarkRoute_GitHub_ALL-16       	  41139	   149062 ns/op	  50279 B/op	    300 allocs/op
+BenchmarkRoute_GitHub_Static-16    	10270708	      588 ns/op	    192 B/op	      1 allocs/op
+BenchmarkRoute_GitHub_Param1-16    	9636596	      623 ns/op	    192 B/op	      1 allocs/op
+BenchmarkTrie_GitHub_ALL-16        	 281414	    21412 ns/op	      0 B/op	      0 allocs/op
+BenchmarkTrie_GitHub_Static-16     	89723523	       66.4 ns/op	      0 B/op	      0 allocs/op
+BenchmarkTrie_GitHub_Param1-16     	68377945	       85.5 ns/op	      0 B/op	      0 allocs/op
+
+// 不带日志
+BenchmarkRoute_GitHub_ALL-16               91000             66082 ns/op            5243 B/op         93 allocs/op
+BenchmarkRoute_GitHub_Static-16         27085474               218 ns/op               0 B/op          0 allocs/op
+BenchmarkRoute_GitHub_Param1-16         24621440               241 ns/op               0 B/op          0 allocs/op
+BenchmarkTrie_GitHub_ALL-16               283584             21375 ns/op               0 B/op          0 allocs/op
+BenchmarkTrie_GitHub_Static-16          87539695                65.5 ns/op             0 B/op          0 allocs/op
+BenchmarkTrie_GitHub_Param1-16          70498572                83.2 ns/op             0 B/op          0 allocs/op
 ```
 
 > v0.2.0

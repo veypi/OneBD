@@ -3,6 +3,7 @@ package OneBD
 import (
 	"github.com/lightjiang/OneBD/core"
 	"github.com/lightjiang/OneBD/libs/handler"
+	"github.com/lightjiang/OneBD/libs/hpool"
 	"github.com/lightjiang/OneBD/rfc"
 	"github.com/lightjiang/OneBD/utils/log"
 	"strings"
@@ -16,7 +17,7 @@ type testHandler struct {
 func (h *testHandler) Get() (interface{}, error) {
 	h.Meta().SetHeader("a", "1")
 	h.Meta().Write([]byte(h.Meta().RemoteAddr()))
-	h.Meta().StreamWrite(strings.NewReader(h.Meta().ParamsStr("uid")))
+	h.Meta().StreamWrite(strings.NewReader(h.Meta().Params("uid")))
 	return nil, nil
 }
 
@@ -36,10 +37,11 @@ func TestNew(t *testing.T) {
 		app.Logger().Info("creating a handler")
 		return &testHandler{}
 	}
-	app.Router().Set("/:uid", newH, rfc.MethodGet)
-	app.Router().SubRouter("/asd/sss").Set("asd/xxx", newH, rfc.MethodGet, rfc.MethodPost)
+	hp := hpool.NewHandlerPool(newH)
+	app.Router().Set("/s/:uid", hp, rfc.MethodGet)
+	app.Router().SubRouter("/asd/sss").Set("asd/*abc", newH, rfc.MethodGet, rfc.MethodPost)
 	app.Router().SubRouter("/asd/sss").Set("asd/zzz", newH, rfc.MethodPost)
-	app.Router().SubRouter("/sss/asd").Set("/123/int:usernsame/str:username", newH)
+	app.Router().SubRouter("/sss/asd").Set("/123/:usernsame/:username", newH)
 	app.Router().SetNotFoundFunc(func(m core.Meta) {
 		app.Logger().Info("checking 404 status")
 		m.Write([]byte(m.RequestPath()))
