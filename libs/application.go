@@ -4,7 +4,7 @@ import (
 	"crypto/tls"
 	"github.com/lightjiang/OneBD/core"
 	"github.com/lightjiang/OneBD/libs/router"
-	"go.uber.org/zap"
+	"github.com/rs/zerolog"
 	"golang.org/x/net/netutil"
 	"net"
 	"net/http"
@@ -54,7 +54,7 @@ func NewApplication(cfg *core.Config) *Application {
 	return app
 }
 
-func (app *Application) Logger() *zap.Logger {
+func (app *Application) Logger() *zerolog.Logger {
 	return app.config.Logger
 }
 
@@ -67,12 +67,12 @@ func (app *Application) Config() *core.Config {
 }
 
 func (app *Application) Run() error {
-	app.Logger().Info("\nRouting Table" + app.router.String())
+	app.Logger().Info().Msg("\nRouting Table" + app.router.String())
 	l, e := app.netListener()
 	if e != nil {
 		return e
 	}
-	app.Logger().Info("listening http://" + app.config.Host)
+	app.Logger().Info().Msg("listening http://" + app.config.Host)
 	return app.server.Serve(l)
 }
 

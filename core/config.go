@@ -3,7 +3,7 @@ package core
 import (
 	"crypto/tls"
 	"github.com/lightjiang/OneBD/utils/log"
-	"go.uber.org/zap"
+	"github.com/rs/zerolog"
 )
 
 type Config struct {
@@ -11,17 +11,15 @@ type Config struct {
 	Host          string
 	Debug         bool
 	LoggerPath    string
-	LoggerLevel   log.Level
-	Logger        *zap.Logger
+	LoggerLevel   zerolog.Level
+	Logger        *zerolog.Logger
 	Charset       string `json:"charset,omitempty"`
 	TimeFormat    string `json:"time_format,omitempty"`
 	PostMaxMemory int64
 	TlsCfg        *tls.Config
 	// 最大连接数量 为非正数 则不限制
-	MaxConnections                 int
-	Router                         Router
-	DisableRouterPathCaseSensitive bool
-	DisableRouterPathCorrection    bool
+	MaxConnections int
+	Router         Router
 }
 
 func (c *Config) IsValid() *Config {
@@ -37,9 +35,10 @@ func (c *Config) BuildLogger() {
 	}
 	log.SetLevel(c.LoggerLevel)
 	if c.LoggerPath != "" {
-		log.EnableFileLog(c.LoggerPath)
+		c.Logger = log.FileLogger(c.LoggerPath)
+	} else {
+		c.Logger = log.DefaultLogger
 	}
-	c.Logger = log.Build()
 }
 
 func DefaultConfig() *Config {

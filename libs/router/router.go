@@ -7,7 +7,6 @@ import (
 	"github.com/lightjiang/OneBD/rfc"
 	"github.com/lightjiang/OneBD/utils"
 	"github.com/lightjiang/OneBD/utils/log"
-	"go.uber.org/zap"
 	"net/http"
 )
 
@@ -91,13 +90,12 @@ func (r *route) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	defer func() {
 		// 以防各种statusFunc出问题
 		if err := recover(); err != nil {
-			logger.Error("panic error", zap.Any("err", err))
+			logger.Error().Interface("panic", err).Msg("serve http panic")
 		} else if m != nil {
 			meta.Release(m)
 		}
 	}()
 	//logger.Debug(req.RequestURI + " <- " + req.RemoteAddr)
-	//now := time.Now()
 	t = r.trie.Match("/" + req.Method + req.URL.Path)
 	if t != nil && t.handler != nil {
 		m = meta.Acquire(w, req, t.params, app)
@@ -110,10 +108,11 @@ func (r *route) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 		r.fireOnStatus(rfc.StatusNotFound, m)
 	}
 	m.Flush()
-	//logger.Debug(req.URL.Path,
-	//	zap.String("method", req.Method),
-	//	zap.Int64("delta/us", time.Now().Sub(now).Microseconds()),
-	//	zap.String("addr", req.RemoteAddr))
+	logger.Debug().
+		Str("addr", req.RemoteAddr).
+		Int64("delta/ms", m.AliveTime().Microseconds()).
+		Str("method", req.Method).
+		Msg(req.URL.Path)
 }
 
 func (r *route) SetStatusFunc(status rfc.Status, fc core.MetaFunc) {
@@ -154,7 +153,7 @@ func (r *route) fireOnStatus(status rfc.Status, m core.Meta) {
 func DefaultCycle(fc interface{}, m core.Meta) {
 	defer func() {
 		if err := recover(); err != nil {
-			logger.Error("panic error", zap.Any("err", err))
+			logger.Error().Interface("panic", err).Msg("default cycle panic")
 			m.SetStatus(rfc.StatusInternalServerError)
 		}
 	}()

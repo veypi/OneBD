@@ -124,10 +124,12 @@ func (t *trie) Match(url string) *trie {
 	for i, v := range url {
 		if v == '/' {
 			res = t.subMatch(url[:i])
-			if res != nil {
-				return res.Match(url[i:])
+			if res == nil {
+				return nil
+			} else if res.fragment[0] == '*' {
+				return res
 			}
-			break
+			return res.Match(url[i:])
 		}
 	}
 	return t.subMatch(url)

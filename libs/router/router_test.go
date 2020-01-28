@@ -5,7 +5,6 @@ import (
 	"github.com/lightjiang/OneBD/libs/handler"
 	"github.com/lightjiang/OneBD/libs/hpool"
 	"github.com/lightjiang/OneBD/rfc"
-	"go.uber.org/zap"
 	"net/http"
 	"strings"
 	"testing"
@@ -44,7 +43,7 @@ func (h *testHandler) OnResponse(data interface{}) {
 		reqPath := h.Meta().RequestPath()
 		reqPath = strings.Replace(reqPath, paramPrefix, ":", -1)
 		if h.path != reqPath {
-			logger.Warn("route error: ", zap.String("request", h.Meta().RequestPath()), zap.String("handle", h.path))
+			logger.Warn().Str("request", h.Meta().RequestPath()).Str("handle", h.path).Msg("route error")
 		}
 		h.Meta().Write([]byte(h.Meta().RequestPath()))
 	}
@@ -71,6 +70,7 @@ func githubRouter() *route {
 var r *route
 
 func init() {
+	//log.SetLevel(zerolog.WarnLevel)
 	cfg = &core.Config{}
 	r = githubRouter()
 }

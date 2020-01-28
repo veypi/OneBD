@@ -1,8 +1,8 @@
 package core
 
-import "go.uber.org/zap"
+import "github.com/rs/zerolog"
 
 type AppInfo interface {
-	Logger() *zap.Logger
+	Logger() *zerolog.Logger
 	Config() *Config
 }

@@ -1,7 +1,6 @@
 package router
 
 import (
-	"go.uber.org/zap"
 	"testing"
 )
 
@@ -19,8 +18,7 @@ func init() {
 			}
 		}
 	}
-	logger.Info("github api", zap.Int("sum", len(allPaths)))
-
+	logger.Info().Int("sum", len(allPaths)).Msg("github api")
 }
 
 func TestTrie(t *testing.T) {

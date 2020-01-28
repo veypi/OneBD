@@ -74,6 +74,8 @@
 
 ## 更新
 
+- 0.3.3 比较了zero和zap性能数据(详细见doc)，改用 zerolog 作为日志
+
 - 0.3.2 更新路由组件，更加解耦
     - Set 方法不限制设置请求处理方法， 可以是handlerPool， func()core.handler, func(core.Meta), 或其他自定义方法或动态类
     - 路由添加SetRequestCycle(func(interface(), core.Meta))方法， 可以自己注册请求周期管理函数，默认支持上述三种

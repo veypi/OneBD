@@ -73,7 +73,37 @@ BenchmarkTrie_GitHub_ALL-16               276162             21662 ns/op        
 BenchmarkTrie_GitHub_Static-16          90452186                64.6 ns/op             0 B/op          0 allocs/op
 BenchmarkTrie_GitHub_Param1-16          71636491                83.4 ns/op             0 B/op          0 allocs/op
 ```
+带日志
+```bash
+BenchmarkRoute_GitHub_ALL-16               48658            122012 ns/op           15700 B/op        297 allocs/op
+BenchmarkRoute_GitHub_Static-16         12254907               496 ns/op              48 B/op          1 allocs/op
+BenchmarkRoute_GitHub_Param1-16         11139134               538 ns/op              48 B/op          1 allocs/op
+BenchmarkTrie_GitHub_ALL-16               253425             23088 ns/op               0 B/op          0 allocs/op
+BenchmarkTrie_GitHub_Static-16          90329766                69.8 ns/op             0 B/op          0 allocs/op
+BenchmarkTrie_GitHub_Param1-16          66921506                87.3 ns/op             0 B/op          0 allocs/op
+```
 
+输出console
+因为格式化输出，方便阅读,所以性能降低很多
+```bash
+BenchmarkRoute_GitHub_ALL-16                1266             4654611 ns/op        820982 B/op      19637 allocs/op
+BenchmarkRoute_GitHub_Static-16           271770               22145 ns/op          3619 B/op         96 allocs/op
+BenchmarkRoute_GitHub_Param1-16           273028               22389 ns/op          3651 B/op         96 allocs/op
+BenchmarkTrie_GitHub_ALL-16               267571               22369 ns/op             0 B/op          0 allocs/op
+BenchmarkTrie_GitHub_Static-16          88956618                68.7 ns/op             0 B/op          0 allocs/op
+BenchmarkTrie_GitHub_Param1-16          66642687                88.7 ns/op             0 B/op          0 allocs/op
+
+```
+ 输出到文件
+```bash
+BenchmarkRoute_GitHub_ALL-16                4902           1299249 ns/op           84491 B/op       1116 allocs/op
+BenchmarkRoute_GitHub_Static-16           847026              6090 ns/op             353 B/op          5 allocs/op
+BenchmarkRoute_GitHub_Param1-16           832141              6358 ns/op             354 B/op          5 allocs/op
+BenchmarkTrie_GitHub_ALL-16               275647             21776 ns/op               0 B/op          0 allocs/op
+BenchmarkTrie_GitHub_Static-16          86367999                67.4 ns/op             0 B/op          0 allocs/op
+BenchmarkTrie_GitHub_Param1-16          69524283                86.7 ns/op             0 B/op          0 allocs/op
+
+```
 > v0.3.0
 
 // 日志会极大影响性能，加上日志路由性能会下降一倍

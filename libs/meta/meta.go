@@ -5,11 +5,12 @@ import (
 	"github.com/lightjiang/OneBD/core"
 	"github.com/lightjiang/OneBD/rfc"
 	"github.com/lightjiang/OneBD/utils"
-	"go.uber.org/zap"
+	"github.com/rs/zerolog"
 	"io"
 	"net/http"
 	"strconv"
 	"sync"
+	"time"
 )
 
 var pool = sync.Pool{
@@ -23,6 +24,7 @@ var pool = sync.Pool{
 // payLoad 请求基本处理包
 type payLoad struct {
 	mu             utils.FastLocker
+	initTime       time.Time
 	empty          utils.SafeBool
 	app            core.AppInfo
 	writer         http.ResponseWriter
@@ -37,12 +39,14 @@ type payLoad struct {
 }
 
 func (p *payLoad) Init(w http.ResponseWriter, r *http.Request, params map[string]uint, app core.AppInfo) {
+	p.initTime = time.Now()
 	p.TryReset()
 	p.app = app
 	p.writer = w
 	p.request = r
 	p.status = rfc.StatusOK
 	p.params = params
+	p.resolvedParams = map[string]string{}
 	p.empty.ForceSetFalse()
 	p.ifSetStatus.ForceSetFalse()
 	p.ifFlush.ForceSetFalse()
@@ -58,7 +62,7 @@ func (p *payLoad) TryReset() {
 	}
 }
 
-func (p *payLoad) Logger() *zap.Logger {
+func (p *payLoad) Logger() *zerolog.Logger {
 	return p.app.Logger()
 }
 
@@ -81,22 +85,39 @@ func (p *payLoad) Params(key string) string {
 	if len(p.params) > 0 && len(p.paramsIndex) == 0 {
 		p.paramsIndex = make(map[uint]string)
 		for i, v := range p.params {
-			p.paramsIndex[v] = i
+			p.paramsIndex[v-1] = i
 		}
 		started := false
-		//startedIdx := 2
-		for _, v := range p.RequestPath() {
+		var startedID uint = 0
+		startedIdx := 0
+		tmpPath := p.RequestPath()
+		for i, v := range tmpPath {
 			if v == '/' {
 				if started {
 					started = false
-				} else {
-					started = true
+					if arg, ok := p.paramsIndex[startedID]; ok {
+						if arg[0] == ':' {
+							p.resolvedParams[arg[1:]] = tmpPath[startedIdx : i-1]
+						} else if arg[0] == '*' {
+							p.resolvedParams[arg[1:]] = tmpPath[startedIdx:]
+							break
+						}
+					}
 				}
+				startedID += 1
+				startedIdx = i + 1
+				started = true
 			}
 		}
+		if started {
+			if arg, ok := p.paramsIndex[startedID]; ok {
+				p.resolvedParams[arg[1:]] = tmpPath[startedIdx:]
+			}
+		}
+		p.app.Logger().Info().Interface("p", p.params).Interface("i", p.paramsIndex).Interface("re", p.resolvedParams).Msg(tmpPath)
 	}
 	p.mu.Unlock()
-	return ""
+	return p.resolvedParams[key]
 }
 
 func (p *payLoad) ParamsInt(key string) int {
@@ -118,7 +139,7 @@ func (p *payLoad) Status() rfc.Status {
 
 func (p *payLoad) SetHeader(key, value string) {
 	if p.ifSetStatus.IfTrue() {
-		p.app.Logger().Warn("try to set header failed, must be called before flush")
+		p.app.Logger().Warn().Msg("try to set header failed, must be called before flush")
 		return
 	}
 	p.writer.Header().Set(key, value)
@@ -145,8 +166,6 @@ func (p *payLoad) Flush() {
 	if p.ifFlush.SetTrue() {
 		p.flushStatus()
 		p.buf.WriteTo(p.writer)
-	} else {
-		p.app.Logger().Warn(p.request.URL.Path+":"+p.request.Method+" -> payload has flushed", zap.String("addr", p.RemoteAddr()))
 	}
 }
 
@@ -156,6 +175,10 @@ func (p *payLoad) Write(wrt []byte) {
 
 func (p *payLoad) ResetBuf() {
 	p.buf.Reset()
+}
+
+func (p *payLoad) AliveTime() time.Duration {
+	return time.Now().Sub(p.initTime)
 }
 
 func Acquire(w http.ResponseWriter, r *http.Request, params map[string]uint, app core.AppInfo) core.Meta {
