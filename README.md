@@ -4,6 +4,8 @@
 
 ## 设计思路
 
+![onebd 设计](doc/onebd设计.png)
+
 
 ## 路由
 
