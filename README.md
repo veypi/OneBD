@@ -46,13 +46,7 @@
 
 ## TODO:
 
-- goroutine pool
-
 - hook
-
-- log
-
-- error
 
 - cache
 
@@ -65,8 +59,6 @@
 - session
 
 - auth
-
-- 
 
 
 ## 注意
