@@ -3,7 +3,6 @@ package router
 import (
 	"github.com/lightjiang/OneBD/core"
 	"github.com/lightjiang/OneBD/libs/meta"
-	"github.com/lightjiang/OneBD/libs/oerr"
 	"github.com/lightjiang/OneBD/rfc"
 	"github.com/lightjiang/OneBD/utils"
 	"github.com/lightjiang/OneBD/utils/log"
@@ -193,7 +192,8 @@ func handleCycle(handler core.Handler, m core.Meta) {
 	case rfc.MethodTrace:
 		data, err = handler.Trace()
 	default:
-		panic(oerr.MethodNotSupport)
+		m.SetStatus(rfc.StatusNotImplemented)
+		return
 	}
 	if err != nil {
 		handler.OnError(err)

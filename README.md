@@ -46,6 +46,8 @@
 
 ## TODO:
 
+- content-type 中多种格式支持 
+
 - hook
 
 - cache

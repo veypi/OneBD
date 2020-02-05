@@ -2,11 +2,14 @@ package meta
 
 import (
 	"bytes"
+	"encoding/json"
+	"errors"
 	"github.com/lightjiang/OneBD/core"
 	"github.com/lightjiang/OneBD/rfc"
 	"github.com/lightjiang/OneBD/utils"
 	"github.com/rs/zerolog"
 	"io"
+	"io/ioutil"
 	"net/http"
 	"strconv"
 	"sync"
@@ -32,6 +35,7 @@ type payLoad struct {
 	buf            bytes.Buffer
 	status         rfc.Status
 	ifSetStatus    utils.SafeBool
+	ifRead         utils.SafeBool
 	ifFlush        utils.SafeBool
 	params         map[string]uint
 	paramsIndex    map[uint]string
@@ -49,6 +53,7 @@ func (p *payLoad) Init(w http.ResponseWriter, r *http.Request, params map[string
 	p.resolvedParams = map[string]string{}
 	p.empty.ForceSetFalse()
 	p.ifSetStatus.ForceSetFalse()
+	p.ifRead.ForceSetFalse()
 	p.ifFlush.ForceSetFalse()
 }
 
@@ -56,6 +61,7 @@ func (p *payLoad) TryReset() {
 	if p.empty.SetTrue() {
 		p.writer = nil
 		p.request = nil
+		p.params = nil
 		p.paramsIndex = nil
 		p.resolvedParams = nil
 		p.ResetBuf()
@@ -74,9 +80,32 @@ func (p *payLoad) RequestPath() string {
 	return p.request.URL.Path
 }
 
+func (p *payLoad) UnmarshalBody(ptr interface{}, fc func([]byte, interface{}) error) error {
+	p.request.ParseForm()
+	if p.request.Body == nil {
+		return errors.New("empty body")
+	}
+	if p.ifRead.SetTrue() {
+		data, err := ioutil.ReadAll(p.request.Body)
+		if err != nil {
+			return err
+		}
+		return fc(data, ptr)
+	}
+	return errors.New("request body has been read")
+}
+
+func (p *payLoad) ReadJson(ptr interface{}) error {
+	return p.UnmarshalBody(ptr, json.Unmarshal)
+}
+
 // url 后缀参数, 惰性解析
 func (p *payLoad) Query(key string) string {
-	return ""
+	return p.request.URL.Query().Get(key)
+}
+
+func (p *payLoad) Header(key string) string {
+	return p.request.Header.Get(key)
 }
 
 // url 路径内参数, 由router 给出 惰性解析
@@ -97,7 +126,7 @@ func (p *payLoad) Params(key string) string {
 					started = false
 					if arg, ok := p.paramsIndex[startedID]; ok {
 						if arg[0] == ':' {
-							p.resolvedParams[arg[1:]] = tmpPath[startedIdx : i-1]
+							p.resolvedParams[arg[1:]] = tmpPath[startedIdx:i]
 						} else if arg[0] == '*' {
 							p.resolvedParams[arg[1:]] = tmpPath[startedIdx:]
 							break
@@ -126,7 +155,7 @@ func (p *payLoad) ParamsInt(key string) int {
 }
 
 func (p *payLoad) Method() rfc.Method {
-	return rfc.Method(p.request.Method)
+	return p.request.Method
 }
 
 func (p *payLoad) SetStatus(status rfc.Status) {
@@ -142,6 +171,10 @@ func (p *payLoad) SetHeader(key, value string) {
 		p.app.Logger().Warn().Msg("try to set header failed, must be called before flush")
 		return
 	}
+	if value == "" {
+		p.writer.Header().Del(key)
+		return
+	}
 	p.writer.Header().Set(key, value)
 }
 
@@ -152,13 +185,19 @@ func (p *payLoad) flushStatus() {
 }
 
 func (p *payLoad) StreamRead(wrt io.Writer) {
-	io.Copy(wrt, p.request.Body)
+	if p.ifRead.SetTrue() {
+		io.Copy(wrt, p.request.Body)
+	} else {
+		p.Logger().Warn().Msg("request body has been read")
+	}
 }
 
 func (p *payLoad) StreamWrite(src io.Reader) {
 	if p.ifFlush.SetTrue() {
 		p.flushStatus()
 		io.Copy(p.writer, src)
+	} else {
+		p.Logger().Warn().Msg("response context has been written")
 	}
 }
 

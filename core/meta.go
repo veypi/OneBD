@@ -19,12 +19,15 @@ type Meta interface {
 	Logger() *zerolog.Logger
 	RemoteAddr() string
 	RequestPath() string
+	Method() rfc.Method
+	ReadJson(ptr interface{}) error
+	UnmarshalBody(ptr interface{}, fc func([]byte, interface{}) error) error
 	Query(string) string
+	Header(string) string
 	Params(string) string
 	ParamsInt(string) int
-	Method() rfc.Method
-	SetStatus(status rfc.Status)
 	Status() rfc.Status
+	SetStatus(status rfc.Status)
 	SetHeader(key, value string)
 	AliveTime() time.Duration
 	// 根据设计哲学，不提供cookie 相关处理函数

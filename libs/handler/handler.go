@@ -68,6 +68,7 @@ func (h *BaseHandler) OnResponse(data interface{}) {
 }
 
 func (h *BaseHandler) OnError(err error) {
+	h.Meta().Logger().Warn().Err(err).Msg("err")
 }
 
 func (h *BaseHandler) TryReset() {

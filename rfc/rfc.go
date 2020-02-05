@@ -11,8 +11,6 @@ const (
 	MethodPatch   Method = "PATCH"
 	MethodOptions Method = "OPTIONS"
 	MethodTrace   Method = "TRACE"
-
-	MethodAll Method = "ALL"
 )
 
 type Status = uint
