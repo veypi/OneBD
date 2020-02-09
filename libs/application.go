@@ -4,7 +4,7 @@ import (
 	"crypto/tls"
 	"github.com/lightjiang/OneBD/core"
 	"github.com/lightjiang/OneBD/libs/router"
-	"github.com/rs/zerolog"
+	"github.com/lightjiang/utils/log"
 	"golang.org/x/net/netutil"
 	"net"
 	"net/http"
@@ -48,14 +48,10 @@ func NewApplication(cfg *core.Config) *Application {
 	if cfg.Router != nil {
 		app.router = cfg.Router
 	} else {
-		app.router = router.NewMainRouter(app)
+		app.router = router.NewMainRouter()
 	}
 	app.server.Handler = app.router
 	return app
-}
-
-func (app *Application) Logger() *zerolog.Logger {
-	return app.config.Logger
 }
 
 func (app *Application) Router() core.Router {
@@ -67,12 +63,12 @@ func (app *Application) Config() *core.Config {
 }
 
 func (app *Application) Run() error {
-	app.Logger().Info().Msg("\nRouting Table" + app.router.String())
+	log.Info().Msg("\nRouting Table" + app.router.String())
 	l, e := app.netListener()
 	if e != nil {
 		return e
 	}
-	app.Logger().Info().Msg("listening http://" + app.config.Host)
+	log.Info().Msg("listening http://" + app.config.Host)
 	return app.server.Serve(l)
 }
 

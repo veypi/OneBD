@@ -1,6 +1,7 @@
 package router
 
 import (
+	"github.com/lightjiang/utils/log"
 	"testing"
 )
 
@@ -18,7 +19,7 @@ func init() {
 			}
 		}
 	}
-	logger.Info().Int("sum", len(allPaths)).Msg("github api")
+	log.Info().Int("sum", len(allPaths)).Msg("github api")
 }
 
 func TestTrie(t *testing.T) {

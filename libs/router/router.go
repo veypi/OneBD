@@ -4,18 +4,10 @@ import (
 	"github.com/lightjiang/OneBD/core"
 	"github.com/lightjiang/OneBD/libs/meta"
 	"github.com/lightjiang/OneBD/rfc"
-	"github.com/lightjiang/OneBD/utils"
-	"github.com/lightjiang/OneBD/utils/log"
+	"github.com/lightjiang/utils"
+	"github.com/lightjiang/utils/log"
 	"net/http"
 )
-
-var app core.AppInfo
-var cfg *core.Config
-var logger = log.DefaultLogger
-var baseRouter *route
-
-// 触发缓存 避免每次请求都递归查询触发函数
-var statusFuncCache = make(map[rfc.Status]bool)
 
 type route struct {
 	utils.FastLocker
@@ -26,6 +18,9 @@ type route struct {
 	cycle         core.RequestLifeCycle
 	subRouters    []*route
 	otherHandlers map[rfc.Status]core.MetaFunc
+	// 触发缓存 避免每次请求都递归查询触发函数
+	// 仅 r.top.statusFuncCache 有用
+	statusFuncCache map[rfc.Status]bool
 }
 
 func (r *route) SetRequestLifeCycle(cycle core.RequestLifeCycle) {
@@ -44,17 +39,13 @@ func (r *route) AbsPrefix() string {
 }
 
 // NewRouter allowedMethods 为空时默认所有方法皆允许
-func NewMainRouter(_app core.AppInfo) core.Router {
-	if baseRouter == nil {
-		baseRouter = &route{
-			trie:  &trie{},
-			cycle: DefaultCycle,
-		}
-		baseRouter.top = baseRouter
+func NewMainRouter() core.Router {
+	baseRouter := &route{
+		trie:  &trie{},
+		cycle: DefaultCycle,
 	}
-	app = _app
-	cfg = _app.Config()
-	logger = app.Logger()
+	baseRouter.top = baseRouter
+	baseRouter.statusFuncCache = make(map[rfc.Status]bool)
 	return baseRouter
 }
 
@@ -89,7 +80,7 @@ func (r *route) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	defer func() {
 		// 以防各种statusFunc出问题
 		if err := recover(); err != nil {
-			logger.Error().Interface("panic", err).Msg("serve http panic")
+			log.Error().Interface("panic", err).Msg("serve http panic")
 		} else if m != nil {
 			meta.Release(m)
 		}
@@ -97,17 +88,17 @@ func (r *route) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	//logger.Debug(req.RequestURI + " <- " + req.RemoteAddr)
 	t = r.trie.Match("/" + req.Method + req.URL.Path)
 	if t != nil && t.handler != nil {
-		m = meta.Acquire(w, req, t.params, app)
+		m = meta.Acquire(w, req, t.params)
 		r.cycle(t.handler, m)
 		r.fireOnStatus(m.Status(), m)
 
 	} else {
-		m = meta.Acquire(w, req, nil, app)
+		m = meta.Acquire(w, req, nil)
 		m.SetStatus(rfc.StatusNotFound)
 		r.fireOnStatus(rfc.StatusNotFound, m)
 	}
 	m.Flush()
-	logger.Debug().
+	log.Debug().
 		Str("addr", req.RemoteAddr).
 		Int64("delta/ms", m.AliveTime().Microseconds()).
 		Str("method", req.Method).
@@ -120,7 +111,7 @@ func (r *route) SetStatusFunc(status rfc.Status, fc core.MetaFunc) {
 		r.otherHandlers = make(map[rfc.Status]core.MetaFunc)
 	}
 	r.otherHandlers[status] = fc
-	statusFuncCache[status] = true
+	r.top.statusFuncCache[status] = true
 	r.Unlock()
 }
 
@@ -134,7 +125,7 @@ func (r *route) SetInternalErrorFunc(fc core.MetaFunc) {
 
 // 递归向上直到触发或到树顶
 func (r *route) fireOnStatus(status rfc.Status, m core.Meta) {
-	if _, ok := statusFuncCache[status]; !ok {
+	if _, ok := r.top.statusFuncCache[status]; !ok {
 		return
 	}
 	if r.otherHandlers != nil {
@@ -152,7 +143,7 @@ func (r *route) fireOnStatus(status rfc.Status, m core.Meta) {
 func DefaultCycle(fc interface{}, m core.Meta) {
 	defer func() {
 		if err := recover(); err != nil {
-			logger.Error().Interface("panic", err).Msg("default cycle panic")
+			log.Error().Interface("panic", err).Msg("default cycle panic")
 			m.SetStatus(rfc.StatusInternalServerError)
 		}
 	}()

@@ -6,8 +6,8 @@ import (
 	"errors"
 	"github.com/lightjiang/OneBD/core"
 	"github.com/lightjiang/OneBD/rfc"
-	"github.com/lightjiang/OneBD/utils"
-	"github.com/rs/zerolog"
+	"github.com/lightjiang/utils"
+	"github.com/lightjiang/utils/log"
 	"io"
 	"io/ioutil"
 	"net/http"
@@ -29,7 +29,6 @@ type payLoad struct {
 	mu             utils.FastLocker
 	initTime       time.Time
 	empty          utils.SafeBool
-	app            core.AppInfo
 	writer         http.ResponseWriter
 	request        *http.Request
 	buf            bytes.Buffer
@@ -42,10 +41,9 @@ type payLoad struct {
 	resolvedParams map[string]string
 }
 
-func (p *payLoad) Init(w http.ResponseWriter, r *http.Request, params map[string]uint, app core.AppInfo) {
+func (p *payLoad) Init(w http.ResponseWriter, r *http.Request, params map[string]uint) {
 	p.initTime = time.Now()
 	p.TryReset()
-	p.app = app
 	p.writer = w
 	p.request = r
 	p.status = rfc.StatusOK
@@ -66,10 +64,6 @@ func (p *payLoad) TryReset() {
 		p.resolvedParams = nil
 		p.ResetBuf()
 	}
-}
-
-func (p *payLoad) Logger() *zerolog.Logger {
-	return p.app.Logger()
 }
 
 func (p *payLoad) RemoteAddr() string {
@@ -167,7 +161,7 @@ func (p *payLoad) Status() rfc.Status {
 
 func (p *payLoad) SetHeader(key, value string) {
 	if p.ifSetStatus.IfTrue() {
-		p.app.Logger().Warn().Msg("try to set header failed, must be called before flush")
+		log.Warn().Msg("try to set header failed, must be called before flush")
 		return
 	}
 	if value == "" {
@@ -187,7 +181,7 @@ func (p *payLoad) StreamRead(wrt io.Writer) {
 	if p.ifRead.SetTrue() {
 		io.Copy(wrt, p.request.Body)
 	} else {
-		p.Logger().Warn().Msg("request body has been read")
+		log.Warn().Msg("request body has been read")
 	}
 }
 
@@ -196,7 +190,7 @@ func (p *payLoad) StreamWrite(src io.Reader) {
 		p.flushStatus()
 		io.Copy(p.writer, src)
 	} else {
-		p.Logger().Warn().Msg("response context has been written")
+		log.Warn().Msg("response context has been written")
 	}
 }
 
@@ -219,9 +213,9 @@ func (p *payLoad) AliveTime() time.Duration {
 	return time.Now().Sub(p.initTime)
 }
 
-func Acquire(w http.ResponseWriter, r *http.Request, params map[string]uint, app core.AppInfo) core.Meta {
+func Acquire(w http.ResponseWriter, r *http.Request, params map[string]uint) core.Meta {
 	m := pool.Get().(core.Meta)
-	m.Init(w, r, params, app)
+	m.Init(w, r, params)
 	return m
 }
 

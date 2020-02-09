@@ -3,7 +3,8 @@ package handler
 import (
 	"github.com/lightjiang/OneBD/core"
 	"github.com/lightjiang/OneBD/rfc"
-	"github.com/lightjiang/OneBD/utils"
+	"github.com/lightjiang/utils"
+	"github.com/lightjiang/utils/log"
 )
 
 //BaseHandler  请求 基本处理流程
@@ -64,11 +65,11 @@ func (h *BaseHandler) Finished() error {
 	return nil
 }
 
-func (h *BaseHandler) OnResponse(data interface{}) {
+func (h *BaseHandler) OnResponse(interface{}) {
 }
 
 func (h *BaseHandler) OnError(err error) {
-	h.Meta().Logger().Warn().Err(err).Msg("err")
+	log.Warn().Err(err).Msg("err")
 }
 
 func (h *BaseHandler) TryReset() {

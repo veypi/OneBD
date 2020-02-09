@@ -2,17 +2,16 @@ package core
 
 import (
 	"crypto/tls"
-	"github.com/lightjiang/OneBD/utils/log"
-	"github.com/rs/zerolog"
+	"github.com/lightjiang/utils/log"
 )
 
 type Config struct {
 	// 服务监听地址
-	Host          string
-	Debug         bool
+	Host  string
+	Debug bool
+	// log file path
 	LoggerPath    string
-	LoggerLevel   zerolog.Level
-	Logger        *zerolog.Logger
+	LoggerLevel   log.Level
 	Charset       string `json:"charset,omitempty"`
 	TimeFormat    string `json:"time_format,omitempty"`
 	PostMaxMemory int64
@@ -30,14 +29,11 @@ func (c *Config) IsValid() *Config {
 }
 
 func (c *Config) BuildLogger() {
-	if c.Logger != nil {
-		return
-	}
 	log.SetLevel(c.LoggerLevel)
 	if c.LoggerPath != "" {
-		c.Logger = log.FileLogger(c.LoggerPath)
+		log.SetLogger(log.FileLogger(c.LoggerPath))
 	} else {
-		c.Logger = log.DefaultLogger
+		log.SetLogger(log.ConsoleLogger())
 	}
 }
 

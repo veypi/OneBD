@@ -2,7 +2,6 @@ package core
 
 import (
 	"github.com/lightjiang/OneBD/rfc"
-	"github.com/rs/zerolog"
 	"io"
 	"net/http"
 	"time"
@@ -14,9 +13,8 @@ type MetaFunc func(m Meta)
 // Meta 请求辅助处理单元
 type Meta interface {
 	// 生命周期 Init-> Flush/StreamWrite ->TryReset
-	Init(w http.ResponseWriter, r *http.Request, params map[string]uint, app AppInfo)
+	Init(w http.ResponseWriter, r *http.Request, params map[string]uint)
 	TryReset()
-	Logger() *zerolog.Logger
 	RemoteAddr() string
 	RequestPath() string
 	Method() rfc.Method

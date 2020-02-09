@@ -5,7 +5,7 @@ import (
 	"github.com/lightjiang/OneBD/libs/handler"
 	"github.com/lightjiang/OneBD/libs/hpool"
 	"github.com/lightjiang/OneBD/rfc"
-	"github.com/rs/zerolog"
+	"github.com/lightjiang/utils/log"
 	"testing"
 )
 
@@ -28,7 +28,7 @@ func (h *testHandler) Post() (interface{}, error) {
 	if err != nil {
 		return nil, err
 	}
-	h.Meta().Logger().Warn().Interface("m", m).
+	log.Warn().Interface("m", m).
 		Str("uid", h.Meta().Params("uid")).
 		Str("abc", h.Meta().Params("abc")).
 		Str("query_a", h.Meta().Query("a")).
@@ -46,11 +46,11 @@ func TestNew(t *testing.T) {
 		TlsCfg:         nil,
 		MaxConnections: 0,
 	}
-	cfg.LoggerLevel = zerolog.WarnLevel
+	cfg.LoggerLevel = log.WarnLevel
 	cfg.BuildLogger()
 	app := New(cfg)
 	newH := func() core.Handler {
-		app.Logger().Info().Msg("creating a handler")
+		log.Info().Msg("creating a handler")
 		return &testHandler{}
 	}
 	newPool := hpool.NewHandlerPool(newH)
@@ -61,11 +61,11 @@ func TestNew(t *testing.T) {
 	app.Router().SubRouter("/asd/sss").Set("asd/zzz", newH, rfc.MethodPost)
 	app.Router().SubRouter("/sss/asd").Set("/123/:uid/:username", newH)
 	app.Router().SetNotFoundFunc(func(m core.Meta) {
-		app.Logger().Info().Msg("checking 404 status")
+		log.Info().Msg("checking 404 status")
 		m.Write([]byte(m.RequestPath()))
 	})
 	app.Router().SetInternalErrorFunc(func(meta core.Meta) {
-		app.Logger().Info().Msg("checking 500 status")
+		log.Info().Msg("checking 500 status")
 	})
 	err := app.Run()
 	t.Error(err)
