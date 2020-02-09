@@ -48,6 +48,8 @@
 
 - content-type 中多种格式支持 
 
+- 内置代理功能
+
 - hook
 
 - cache
@@ -58,9 +60,10 @@
 
 - MQ
 
-- session
-
 - auth
+
+- 是否参考 fasthttp 继续优化net/http包相关,(可以实现 goroutine 池, 如 fasthttp 的workerPool机制)
+  或者直接引用fasthttp
 
 
 ## 注意

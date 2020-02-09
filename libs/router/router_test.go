@@ -144,6 +144,7 @@ var githubAPi = []struct {
 	path    string
 	methods []string
 }{
+	{"/", []string{"GET"}},
 	{"/gitignore/templates", []string{"GET"}},
 	{"/repos/:owner/:repo/commits/:sha", []string{"GET"}},
 	{"/repos/:owner/:repo/issues/:number", []string{"GET"}},

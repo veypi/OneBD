@@ -27,9 +27,9 @@ func TestTrie(t *testing.T) {
 	for _, api := range allPaths {
 		p = ts.Match(api)
 		if p == nil || p.handler != api {
-			t.Errorf("request %s but recieve %+v", api, p)
+			t.Errorf("request %s but recieve %+v", api, p.handler)
 		} else {
-			t.Log(api)
+			//t.Log(api)
 		}
 	}
 }

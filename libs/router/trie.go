@@ -36,8 +36,8 @@ func (t *trie) string() []string {
 	}
 	res := make([]string, 0, 10)
 	item := t.AbsPath()
-	if t.params != nil {
-		//item += fmt.Sprintf("     %+v", t.params)
+	if t.handler != nil {
+		item = "\033[32m" + item + "\033[0m"
 	}
 	res = append(res, item)
 	for _, subT := range t.subTrie {
@@ -114,7 +114,7 @@ func (t *trie) add(fragments []string, params map[string]uint, h interface{}) er
 }
 
 func (t *trie) Match(url string) *trie {
-	if url == "" || url == "/" {
+	if url == "" {
 		return t
 	}
 	if url[0] == '/' {

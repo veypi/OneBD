@@ -6,7 +6,6 @@ import (
 	"github.com/lightjiang/OneBD/libs/hpool"
 	"github.com/lightjiang/OneBD/rfc"
 	"github.com/rs/zerolog"
-	"strings"
 	"testing"
 )
 
@@ -14,32 +13,51 @@ type testHandler struct {
 	handler.BaseHandler
 }
 
+var response = []byte("response")
+
 func (h *testHandler) Get() (interface{}, error) {
-	h.Meta().SetHeader("a", "1")
-	h.Meta().Write([]byte(h.Meta().RemoteAddr()))
-	h.Meta().StreamWrite(strings.NewReader(h.Meta().Params("uid")))
+	//h.Meta().SetHeader("a", "1")
+	h.Meta().Write(response)
+	//h.Meta().StreamWrite(strings.NewReader(h.Meta().Params("uid")))
+	return nil, nil
+}
+
+func (h *testHandler) Post() (interface{}, error) {
+	var m = map[string]interface{}{}
+	err := h.Meta().ReadJson(&m)
+	if err != nil {
+		return nil, err
+	}
+	h.Meta().Logger().Warn().Interface("m", m).
+		Str("uid", h.Meta().Params("uid")).
+		Str("abc", h.Meta().Params("abc")).
+		Str("query_a", h.Meta().Query("a")).
+		Str("query_b", h.Meta().Query("b")).
+		Msg("msg")
 	return nil, nil
 }
 
 func TestNew(t *testing.T) {
 	cfg := &core.Config{
-		Host:           "0.0.0.0:4000",
+		Host:           "0.0.0.0:8080",
 		Charset:        "",
 		TimeFormat:     "",
 		PostMaxMemory:  0,
 		TlsCfg:         nil,
 		MaxConnections: 0,
 	}
-	cfg.LoggerLevel = zerolog.DebugLevel
+	cfg.LoggerLevel = zerolog.WarnLevel
 	cfg.BuildLogger()
 	app := New(cfg)
 	newH := func() core.Handler {
 		app.Logger().Info().Msg("creating a handler")
 		return &testHandler{}
 	}
+	newPool := hpool.NewHandlerPool(newH)
 	hp := hpool.NewHandlerPool(newH)
+	app.Router().Set("/", hp, rfc.MethodGet)
 	app.Router().Set("/s/:uid", hp, rfc.MethodGet)
-	app.Router().SubRouter("/asd/sss").Set("/:uid/*abc", newH, rfc.MethodGet, rfc.MethodPost)
+	app.Router().SubRouter("/asd/sss").Set("/:uid/*abc", newPool, rfc.MethodGet, rfc.MethodPost)
 	app.Router().SubRouter("/asd/sss").Set("asd/zzz", newH, rfc.MethodPost)
 	app.Router().SubRouter("/sss/asd").Set("/123/:uid/:username", newH)
 	app.Router().SetNotFoundFunc(func(m core.Meta) {

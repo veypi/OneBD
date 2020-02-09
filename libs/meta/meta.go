@@ -143,7 +143,6 @@ func (p *payLoad) Params(key string) string {
 				p.resolvedParams[arg[1:]] = tmpPath[startedIdx:]
 			}
 		}
-		p.app.Logger().Info().Interface("p", p.params).Interface("i", p.paramsIndex).Interface("re", p.resolvedParams).Msg(tmpPath)
 	}
 	p.mu.Unlock()
 	return p.resolvedParams[key]
