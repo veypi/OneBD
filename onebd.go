@@ -6,9 +6,17 @@ import (
 )
 
 const (
-	Version = "v0.3.4"
+	Version = "v0.3.5"
 )
 
-func New(cfg *core.Config) *libs.Application {
+type Router = core.Router
+type Meta = core.Meta
+type MetaFunc = core.MetaFunc
+type Handler = core.Handler
+type HandlerPool = core.HandlerPool
+type RequestLifeCycle = core.RequestLifeCycle
+type Config = core.Config
+
+func New(cfg *Config) *libs.Application {
 	return libs.NewApplication(cfg)
 }

@@ -1,13 +1,11 @@
 package meta
 
 import (
-	"bytes"
 	"encoding/json"
 	"errors"
 	"github.com/lightjiang/OneBD/core"
 	"github.com/lightjiang/OneBD/rfc"
 	"github.com/lightjiang/utils"
-	"github.com/lightjiang/utils/log"
 	"io"
 	"io/ioutil"
 	"net/http"
@@ -31,11 +29,8 @@ type payLoad struct {
 	empty          utils.SafeBool
 	writer         http.ResponseWriter
 	request        *http.Request
-	buf            bytes.Buffer
 	status         rfc.Status
-	ifSetStatus    utils.SafeBool
 	ifRead         utils.SafeBool
-	ifFlush        utils.SafeBool
 	params         map[string]uint
 	paramsIndex    map[uint]string
 	resolvedParams map[string]string
@@ -50,9 +45,7 @@ func (p *payLoad) Init(w http.ResponseWriter, r *http.Request, params map[string
 	p.params = params
 	p.resolvedParams = map[string]string{}
 	p.empty.ForceSetFalse()
-	p.ifSetStatus.ForceSetFalse()
 	p.ifRead.ForceSetFalse()
-	p.ifFlush.ForceSetFalse()
 }
 
 func (p *payLoad) TryReset() {
@@ -62,7 +55,6 @@ func (p *payLoad) TryReset() {
 		p.params = nil
 		p.paramsIndex = nil
 		p.resolvedParams = nil
-		p.ResetBuf()
 	}
 }
 
@@ -75,7 +67,6 @@ func (p *payLoad) RequestPath() string {
 }
 
 func (p *payLoad) UnmarshalBody(ptr interface{}, fc func([]byte, interface{}) error) error {
-	p.request.ParseForm()
 	if p.request.Body == nil {
 		return errors.New("empty body")
 	}
@@ -98,7 +89,7 @@ func (p *payLoad) Query(key string) string {
 	return p.request.URL.Query().Get(key)
 }
 
-func (p *payLoad) Header(key string) string {
+func (p *payLoad) GetHeader(key string) string {
 	return p.request.Header.Get(key)
 }
 
@@ -151,19 +142,11 @@ func (p *payLoad) Method() rfc.Method {
 	return p.request.Method
 }
 
-func (p *payLoad) SetStatus(status rfc.Status) {
-	p.status = status
-}
-
 func (p *payLoad) Status() rfc.Status {
 	return p.status
 }
 
 func (p *payLoad) SetHeader(key, value string) {
-	if p.ifSetStatus.IfTrue() {
-		log.Warn().Msg("try to set header failed, must be called before flush")
-		return
-	}
 	if value == "" {
 		p.writer.Header().Del(key)
 		return
@@ -171,42 +154,36 @@ func (p *payLoad) SetHeader(key, value string) {
 	p.writer.Header().Set(key, value)
 }
 
-func (p *payLoad) flushStatus() {
-	if p.ifSetStatus.SetTrue() {
-		p.writer.WriteHeader(int(p.status))
-	}
-}
-
-func (p *payLoad) StreamRead(wrt io.Writer) {
+func (p *payLoad) StreamRead(wrt io.Writer) (int64, error) {
 	if p.ifRead.SetTrue() {
-		io.Copy(wrt, p.request.Body)
-	} else {
-		log.Warn().Msg("request body has been read")
+		return io.Copy(wrt, p.request.Body)
 	}
+	return 0, errors.New("request bodt has been read")
 }
 
-func (p *payLoad) StreamWrite(src io.Reader) {
-	if p.ifFlush.SetTrue() {
-		p.flushStatus()
-		io.Copy(p.writer, src)
-	} else {
-		log.Warn().Msg("response context has been written")
-	}
+func (p *payLoad) StreamWrite(src io.Reader) (int64, error) {
+	return io.Copy(p.writer, src)
 }
 
-func (p *payLoad) Flush() {
-	if p.ifFlush.SetTrue() {
-		p.flushStatus()
-		p.buf.WriteTo(p.writer)
-	}
+func (p *payLoad) Request() *http.Request {
+	return p.request
 }
 
-func (p *payLoad) Write(wrt []byte) {
-	p.buf.Write(wrt)
+func (p *payLoad) ResponseWriter() http.ResponseWriter {
+	return p.writer
 }
 
-func (p *payLoad) ResetBuf() {
-	p.buf.Reset()
+func (p *payLoad) Write(wrt []byte) (int, error) {
+	return p.writer.Write(wrt)
+}
+
+func (p *payLoad) WriteHeader(status rfc.Status) {
+	p.status = status
+	p.writer.WriteHeader(status)
+}
+
+func (p *payLoad) Header() http.Header {
+	return p.writer.Header()
 }
 
 func (p *payLoad) AliveTime() time.Duration {

@@ -1,12 +1,15 @@
 package router
 
 import (
+	"fmt"
 	"github.com/lightjiang/OneBD/core"
 	"github.com/lightjiang/OneBD/libs/meta"
 	"github.com/lightjiang/OneBD/rfc"
 	"github.com/lightjiang/utils"
 	"github.com/lightjiang/utils/log"
 	"net/http"
+	"os"
+	"strings"
 )
 
 type route struct {
@@ -33,7 +36,7 @@ func (r *route) String() string {
 
 func (r *route) AbsPrefix() string {
 	if r.root != nil {
-		return r.root.AbsPrefix() + r.prefix
+		return urlAppend(r.root.AbsPrefix(), r.prefix)
 	}
 	return r.prefix
 }
@@ -53,10 +56,66 @@ func (r *route) Set(prefix string, fc interface{}, allowedMethods ...rfc.Method)
 	if len(allowedMethods) == 0 {
 		allowedMethods = []rfc.Method{rfc.MethodGet}
 	}
-	prefix = r.AbsPrefix() + prefix
+	prefix = urlAppend(r.AbsPrefix(), prefix)
 	for _, m := range allowedMethods {
-		r.top.trie.Add("/"+m+prefix, fc)
+		t, err := r.top.trie.Add(urlAppend(m, prefix), fc)
+		if err != nil {
+			log.HandlerErrs(err)
+		} else {
+			t.router = r
+		}
 	}
+}
+
+func (r *route) Static(prefix string, directory string) {
+	dir, err := os.Stat(directory)
+	if err != nil {
+		panic(err)
+	}
+	if !dir.IsDir() {
+		r.Set(prefix, func(m core.Meta) {
+			f, err := os.Open(directory)
+			if err != nil {
+				panic(err)
+			}
+			info, err := f.Stat()
+			if err != nil {
+				m.WriteHeader(rfc.StatusNotFound)
+				return
+			}
+			http.ServeContent(m, m.Request(), info.Name(), info.ModTime(), f)
+		})
+		return
+	}
+	if strings.Contains(prefix, "*") {
+		panic("static prefix should not contain *")
+	}
+	if !strings.HasSuffix(prefix, "/") {
+		prefix += "/"
+	}
+	prefix += "*path"
+	var fs http.FileSystem = http.Dir(directory)
+	r.Set(prefix, func(m core.Meta) {
+		name := m.Params("path")
+		log.Warn().Msg("static " + name)
+		f, err := fs.Open(name)
+		if err != nil {
+			m.WriteHeader(rfc.StatusNotFound)
+			return
+		}
+		defer f.Close()
+		info, err := f.Stat()
+		if err != nil {
+			m.WriteHeader(rfc.StatusNotFound)
+			return
+		}
+		if info.IsDir() {
+			// TODO:: dir list
+			m.WriteHeader(rfc.StatusNotFound)
+			return
+		}
+		http.ServeContent(m, m.Request(), info.Name(), info.ModTime(), f)
+	}, rfc.MethodGet)
 }
 
 func (r *route) SubRouter(prefix string) core.Router {
@@ -90,14 +149,14 @@ func (r *route) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	if t != nil && t.handler != nil {
 		m = meta.Acquire(w, req, t.params)
 		r.cycle(t.handler, m)
-		r.fireOnStatus(m.Status(), m)
+		log.Warn().Msg("123")
+		t.router.fireOnStatus(m.Status(), m)
 
 	} else {
 		m = meta.Acquire(w, req, nil)
-		m.SetStatus(rfc.StatusNotFound)
+		m.WriteHeader(rfc.StatusNotFound)
 		r.fireOnStatus(rfc.StatusNotFound, m)
 	}
-	m.Flush()
 	log.Debug().
 		Str("addr", req.RemoteAddr).
 		Int64("delta/ms", m.AliveTime().Microseconds()).
@@ -144,7 +203,7 @@ func DefaultCycle(fc interface{}, m core.Meta) {
 	defer func() {
 		if err := recover(); err != nil {
 			log.Error().Interface("panic", err).Msg("default cycle panic")
-			m.SetStatus(rfc.StatusInternalServerError)
+			m.WriteHeader(rfc.StatusInternalServerError)
 		}
 	}()
 	switch fc := fc.(type) {
@@ -154,6 +213,9 @@ func DefaultCycle(fc interface{}, m core.Meta) {
 		handleCycle(fc(), m)
 	case core.MetaFunc:
 		fc(m)
+	default:
+		fmt.Printf("> %t \n", fc)
+		log.Warn().Interface("fc", fc).Msg("unknown fc to handle data")
 	}
 }
 
@@ -183,7 +245,7 @@ func handleCycle(handler core.Handler, m core.Meta) {
 	case rfc.MethodTrace:
 		data, err = handler.Trace()
 	default:
-		m.SetStatus(rfc.StatusNotImplemented)
+		m.WriteHeader(rfc.StatusNotImplemented)
 		return
 	}
 	if err != nil {
@@ -203,4 +265,17 @@ func hPoolCycle(hp core.HandlerPool, m core.Meta) {
 	h := hp.Acquire()
 	handleCycle(h, m)
 	hp.Release(h)
+}
+
+func urlAppend(s1, s2 string) string {
+	if len(s1) == 0 {
+		s1 = "/"
+	}
+	if s1[len(s1)-1] != '/' {
+		s1 += "/"
+	}
+	if len(s2) != 0 && s2[0] == '/' {
+		s2 = s2[1:]
+	}
+	return s1 + s2
 }

@@ -63,7 +63,6 @@ func (app *Application) Config() *core.Config {
 }
 
 func (app *Application) Run() error {
-	log.Info().Msg("\nRouting Table" + app.router.String())
 	l, e := app.netListener()
 	if e != nil {
 		return e

@@ -13,7 +13,7 @@ const (
 	MethodTrace   Method = "TRACE"
 )
 
-type Status = uint
+type Status = int
 
 // copy from iris
 const (
@@ -83,4 +83,35 @@ const (
 	StatusLoopDetected                  Status = 508 // RFC 5842, 7.2
 	StatusNotExtended                   Status = 510 // RFC 2774, 7
 	StatusNetworkAuthenticationRequired Status = 511 // RFC 6585, 6
+)
+
+const (
+	// ContentBinaryHeaderValue header value for binary data.
+	ContentBinaryHeaderValue = "application/octet-stream"
+	// ContentHTMLHeaderValue is the  string of text/html response header's content type value.
+	ContentHTMLHeaderValue = "text/html"
+	// ContentJSONHeaderValue header value for JSON data.
+	ContentJSONHeaderValue = "application/json"
+	// ContentJSONProblemHeaderValue header value for JSON API problem error.
+	// Read more at: https://tools.ietf.org/html/rfc7807
+	ContentJSONProblemHeaderValue = "application/problem+json"
+	// ContentXMLProblemHeaderValue header value for XML API problem error.
+	// Read more at: https://tools.ietf.org/html/rfc7807
+	ContentXMLProblemHeaderValue = "application/problem+xml"
+	// ContentJavascriptHeaderValue header value for JSONP & Javascript data.
+	ContentJavascriptHeaderValue = "application/javascript"
+	// ContentTextHeaderValue header value for Text data.
+	ContentTextHeaderValue = "text/plain"
+	// ContentXMLHeaderValue header value for XML data.
+	ContentXMLHeaderValue = "text/xml"
+	// ContentXMLUnreadableHeaderValue obselete header value for XML.
+	ContentXMLUnreadableHeaderValue = "application/xml"
+	// ContentMarkdownHeaderValue custom key/content type, the real is the text/html.
+	ContentMarkdownHeaderValue = "text/markdown"
+	// ContentYAMLHeaderValue header value for YAML data.
+	ContentYAMLHeaderValue = "application/x-yaml"
+	// ContentFormHeaderValue header value for post form data.
+	ContentFormHeaderValue = "application/x-www-form-urlencoded"
+	// ContentFormMultipartHeaderValue header value for post multipart form data.
+	ContentFormMultipartHeaderValue = "multipart/form-data"
 )

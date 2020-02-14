@@ -1,9 +1,13 @@
 package router
 
 import (
-	"github.com/lightjiang/OneBD/libs/oerr"
-	"github.com/lightjiang/OneBD/utils"
+	"errors"
 	"strings"
+)
+
+var (
+	UrlDefinedDuplicate  = errors.New("url defined duplicated")
+	UrlPatternNotSupport = errors.New("url pattern not support")
 )
 
 type trie struct {
@@ -14,6 +18,7 @@ type trie struct {
 	params map[string]uint
 	// params 和handler 同时存在
 	handler  interface{}
+	router   *route
 	parent   *trie
 	wildcard *trie
 	colon    *trie
@@ -22,14 +27,14 @@ type trie struct {
 }
 
 func (t *trie) String() string {
-	return "\n/" + strings.Join(t.string(), "\n")
+	return strings.Join(t.string(), "\n")
 }
 
 func (t *trie) string() []string {
 	fc := func(res []string, subt *trie) []string {
 		if subt != nil {
 			for _, s := range subt.string() {
-				res = append(res, "|...."+s)
+				res = append(res, s)
 			}
 		}
 		return res
@@ -38,8 +43,8 @@ func (t *trie) string() []string {
 	item := t.AbsPath()
 	if t.handler != nil {
 		item = "\033[32m" + item + "\033[0m"
+		res = append(res, item)
 	}
-	res = append(res, item)
 	for _, subT := range t.subTrie {
 		res = fc(res, subT)
 	}
@@ -55,27 +60,21 @@ func (t *trie) AbsPath() string {
 	return t.fragment
 }
 
-func (t *trie) Add(url string, h interface{}) error {
-	fragments := strings.Split(strings.TrimPrefix(url, "/"), "/")
-	if len(fragments) == 0 || fragments[0] == "" {
-		if t.handler != nil {
-			return oerr.UrlDefinedDuplicate.AttachStr(url)
-		}
-		t.handler = h
-		return nil
+func (t *trie) Add(url string, h interface{}) (*trie, error) {
+	if h == nil {
+		return nil, nil
 	}
-	params := make(map[string]uint)
-	return t.add(fragments, params, h)
+	return t.add(strings.Split(strings.TrimPrefix(url, "/"), "/"), make(map[string]uint), h)
 }
 
-func (t *trie) add(fragments []string, params map[string]uint, h interface{}) error {
+func (t *trie) add(fragments []string, params map[string]uint, h interface{}) (*trie, error) {
 	if len(fragments) == 0 {
 		if t.handler != nil {
-			return oerr.UrlDefinedDuplicate.AttachStr(t.AbsPath())
+			return nil, UrlDefinedDuplicate
 		}
 		t.params = params
 		t.handler = h
-		return nil
+		return t, nil
 	}
 	f := fragments[0]
 	next := &trie{
@@ -90,7 +89,7 @@ func (t *trie) add(fragments []string, params map[string]uint, h interface{}) er
 			t.wildcard.fragment = "*"
 		}
 		if len(fragments) > 1 {
-			return oerr.UrlPatternNotSupport.AttachStr(t.wildcard.AbsPath()+"/"+strings.Join(fragments[1:], "/"), utils.CallPath(1))
+			return nil, UrlPatternNotSupport
 		}
 		params[f] = t.wildcard.depth
 		return t.wildcard.add(fragments[1:], params, h)

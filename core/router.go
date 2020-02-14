@@ -8,6 +8,7 @@ import (
 type Router interface {
 	SetRequestLifeCycle(cycle RequestLifeCycle)
 	Set(prefix string, fc interface{}, allowedMethods ...rfc.Method)
+	Static(prefix string, directory string)
 	SubRouter(name string) Router
 	ServeHTTP(http.ResponseWriter, *http.Request)
 	SetStatusFunc(status rfc.Status, rf MetaFunc)
