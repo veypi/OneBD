@@ -10,7 +10,7 @@ import (
 )
 
 type testHandler struct {
-	handler.BaseHandler
+	handler.Base
 }
 
 var response = []byte("response")
@@ -53,8 +53,8 @@ func TestNew(t *testing.T) {
 		log.Info().Msg("creating a handler")
 		return &testHandler{}
 	}
-	newPool := hpool.NewHandlerPool(newH)
-	hp := hpool.NewHandlerPool(newH)
+	newPool := hpool.New(newH)
+	hp := hpool.New(newH)
 	app.Router().Set("/", hp, rfc.MethodGet)
 	app.Router().Set("/s/:uid", hp, rfc.MethodGet)
 	app.Router().SubRouter("/asd/sss").Set("/:uid/*abc", newPool, rfc.MethodGet, rfc.MethodPost)

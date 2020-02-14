@@ -12,7 +12,7 @@ type handlerPool struct {
 	pool    *sync.Pool
 }
 
-func NewHandlerPool(newFunc func() core.Handler) core.HandlerPool {
+func New(newFunc func() core.Handler) core.HandlerPool {
 	p := &handlerPool{
 		pool: &sync.Pool{},
 	}

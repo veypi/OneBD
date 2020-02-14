@@ -7,80 +7,80 @@ import (
 	"github.com/lightjiang/utils/log"
 )
 
-//BaseHandler  请求 基本处理流程
-type BaseHandler struct {
+//Base  请求 基本处理流程
+type Base struct {
 	utils.FastLocker
-	empty   utils.SafeBool
-	payLoad core.Meta
+	empty utils.SafeBool
+	meta  core.Meta
 }
 
-func (h *BaseHandler) Init(m core.Meta) error {
+func (h *Base) Init(m core.Meta) error {
 	h.TryReset()
-	h.payLoad = m
+	h.meta = m
 	h.empty.ForceSetFalse()
 	return nil
 }
 
-func (h *BaseHandler) Get() (interface{}, error) {
-	h.Meta().SetStatus(rfc.StatusNotFound)
+func (h *Base) Get() (interface{}, error) {
+	h.Meta().WriteHeader(rfc.StatusNotFound)
 	return nil, nil
 }
 
-func (h *BaseHandler) Post() (interface{}, error) {
-	h.Meta().SetStatus(rfc.StatusNotFound)
+func (h *Base) Post() (interface{}, error) {
+	h.Meta().WriteHeader(rfc.StatusNotFound)
 	return nil, nil
 }
 
-func (h *BaseHandler) Put() (interface{}, error) {
-	h.Meta().SetStatus(rfc.StatusNotFound)
+func (h *Base) Put() (interface{}, error) {
+	h.Meta().WriteHeader(rfc.StatusNotFound)
 	return nil, nil
 }
 
-func (h *BaseHandler) Patch() (interface{}, error) {
-	h.Meta().SetStatus(rfc.StatusNotFound)
+func (h *Base) Patch() (interface{}, error) {
+	h.Meta().WriteHeader(rfc.StatusNotFound)
 	return nil, nil
 }
 
-func (h *BaseHandler) Head() (interface{}, error) {
-	h.Meta().SetStatus(rfc.StatusNotFound)
+func (h *Base) Head() (interface{}, error) {
+	h.Meta().WriteHeader(rfc.StatusNotFound)
 	return nil, nil
 }
 
-func (h *BaseHandler) Delete() (interface{}, error) {
-	h.Meta().SetStatus(rfc.StatusNotFound)
+func (h *Base) Delete() (interface{}, error) {
+	h.Meta().WriteHeader(rfc.StatusNotFound)
 	return nil, nil
 }
 
-func (h *BaseHandler) Options() (interface{}, error) {
-	h.Meta().SetStatus(rfc.StatusNotFound)
+func (h *Base) Options() (interface{}, error) {
+	h.Meta().WriteHeader(rfc.StatusNotFound)
 	return nil, nil
 }
 
-func (h *BaseHandler) Trace() (interface{}, error) {
-	h.Meta().SetStatus(rfc.StatusNotFound)
+func (h *Base) Trace() (interface{}, error) {
+	h.Meta().WriteHeader(rfc.StatusNotFound)
 	return nil, nil
 }
 
-func (h *BaseHandler) Finished() error {
+func (h *Base) Finished() error {
 	return nil
 }
 
-func (h *BaseHandler) OnResponse(interface{}) {
+func (h *Base) OnResponse(interface{}) {
 }
 
-func (h *BaseHandler) OnError(err error) {
+func (h *Base) OnError(err error) {
 	log.Warn().Err(err).Msg("err")
 }
 
-func (h *BaseHandler) TryReset() {
+func (h *Base) TryReset() {
 	if h.empty.SetTrue() {
 		// 确保payload被释放
-		h.payLoad = nil
+		h.meta = nil
 		// 确保锁释放
 		h.Unlock()
 	}
 }
 
-func (h *BaseHandler) Meta() core.Meta {
-	return h.payLoad
+func (h *Base) Meta() core.Meta {
+	return h.meta
 }

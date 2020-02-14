@@ -35,7 +35,7 @@ func (f *fakeResponseWriter) WriteHeader(statusCode int) {
 
 type testHandler struct {
 	path string
-	handler.BaseHandler
+	handler.Base
 }
 
 func (h *testHandler) OnResponse(data interface{}) {
@@ -60,7 +60,7 @@ func githubRouter() *route {
 	r.top = r
 	for _, api := range githubAPi {
 		tempPath := api.path
-		r.Set(api.path, hpool.NewHandlerPool(func() core.Handler {
+		r.Set(api.path, hpool.New(func() core.Handler {
 			return &testHandler{path: tempPath}
 		}), api.methods...)
 	}
