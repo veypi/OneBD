@@ -3,7 +3,6 @@ package router
 import (
 	"github.com/lightjiang/OneBD/core"
 	"github.com/lightjiang/OneBD/libs/handler"
-	"github.com/lightjiang/OneBD/libs/hpool"
 	"github.com/lightjiang/OneBD/rfc"
 	"github.com/lightjiang/utils/log"
 	"net/http"
@@ -48,31 +47,40 @@ func (h *testHandler) OnResponse(data interface{}) {
 		}
 		h.Meta().Write([]byte(h.Meta().RequestPath()))
 	}
-	h.Meta().SetStatus(rfc.StatusOK)
+	h.Meta().WriteHeader(rfc.StatusOK)
 	return
 }
 
 func githubRouter() *route {
 	r := &route{
-		trie:  &trie{},
 		cycle: DefaultCycle,
 	}
 	r.top = r
 	for _, api := range githubAPi {
-		tempPath := api.path
-		r.Set(api.path, hpool.New(func() core.Handler {
-			return &testHandler{path: tempPath}
-		}), api.methods...)
+		//tempPath := api.path
+		//r.Set(api.path, hpool.New(func() core.Handler {
+		//	return &testHandler{path: tempPath}
+		//}), api.methods...)
+		r.Set(api.path, api.path, api.methods...)
+		//fmt.Printf("%s         %v\n", api.path, api.methods)
 	}
-	//logger.Info(r.String())
+	p := ""
+	r.SetRequestLifeCycle(func(i interface{}, meta core.Meta) {
+		p = i.(string)
+		if meta.RequestPath() != p {
+			log.Warn().Msg(meta.RequestPath() + " != router >" + p)
+		}
+	})
+	//fmt.Println(r.String())
+	//log.Info().Msg(r.String())
 	return r
 }
 
-var r *route
+var testR *route
 
 func init() {
-	//log.SetLevel(zerolog.WarnLevel)
-	r = githubRouter()
+	log.SetLevel(log.InfoLevel)
+	testR = githubRouter()
 }
 
 var req *http.Request
@@ -89,7 +97,7 @@ func BenchmarkRoute_GitHub_ALL(b *testing.B) {
 				req.Method = m
 				w.body = ""
 				w.code = 0
-				r.ServeHTTP(w, req)
+				testR.ServeHTTP(w, req)
 			}
 		}
 	}
@@ -99,23 +107,23 @@ func BenchmarkRoute_GitHub_Static(b *testing.B) {
 	req, _ := http.NewRequest("POST", "/markdown/raw", nil)
 	for i := 0; i < b.N; i++ {
 		w.body = ""
-		r.ServeHTTP(w, req)
+		testR.ServeHTTP(w, req)
 	}
 }
 func BenchmarkRoute_GitHub_Param1(b *testing.B) {
 	temPath = "/teams/:id/repos"
-	temPath = strings.Replace(temPath, ":", paramPrefix, -1)
+	//temPath = strings.Replace(temPath, ":", paramPrefix, -1)
 	req, _ := http.NewRequest("GET", temPath, nil)
 	for i := 0; i < b.N; i++ {
 		w.body = ""
-		r.ServeHTTP(w, req)
+		testR.ServeHTTP(w, req)
 	}
 }
 func TestRoute_ServeHTTP2(t *testing.T) {
 	w := new(fakeResponseWriter)
-	req, _ := http.NewRequest("GET", "/markdown/raw", nil)
+	req, _ := http.NewRequest("GET", "/markdown/raw/?a=1", nil)
 	w.body = ""
-	r.ServeHTTP(w, req)
+	testR.ServeHTTP(w, req)
 }
 
 func TestRoute_ServeHTTP(t *testing.T) {
@@ -123,14 +131,15 @@ func TestRoute_ServeHTTP(t *testing.T) {
 	req, _ := http.NewRequest(rfc.MethodGet, "/", nil)
 	temPath := ""
 	for _, api := range githubAPi {
-		temPath = strings.Replace(api.path, ":", paramPrefix, -1)
+		//temPath = strings.Replace(api.path, ":", paramPrefix, -1)
+		temPath = api.path
 		req.URL.Path = temPath
 		req.RequestURI = temPath
 		for _, m := range api.methods {
 			req.Method = m
 			w.body = ""
 			w.code = 0
-			r.ServeHTTP(w, req)
+			testR.ServeHTTP(w, req)
 			//if w.code != 200 || w.body != temPath {
 			//	t.Errorf("request %s(%s): but recive %d, %s;\n",
 			//		api.path, m, w.code, w.body)

@@ -67,7 +67,7 @@ func (app *Application) Run() error {
 	if e != nil {
 		return e
 	}
-	log.Info().Msg("listening http://" + app.config.Host)
+	log.WithNoCaller.Info().Msg("listening http://" + app.config.Host)
 	return app.server.Serve(l)
 }
 

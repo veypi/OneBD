@@ -7,7 +7,7 @@ import (
 
 type Router interface {
 	SetRequestLifeCycle(cycle RequestLifeCycle)
-	Set(prefix string, fc interface{}, allowedMethods ...rfc.Method)
+	Set(prefix string, fc interface{}, allowedMethods ...rfc.Method) Router
 	Static(prefix string, directory string)
 	SubRouter(name string) Router
 	ServeHTTP(http.ResponseWriter, *http.Request)
@@ -16,6 +16,7 @@ type Router interface {
 	// 对于内部panic错误， 返回500 错误 并执行相应回调
 	SetInternalErrorFunc(fc MetaFunc)
 	String() string
+	AbsPath() string
 }
 
-type RequestLifeCycle func(interface{}, Meta)
+type RequestLifeCycle = func(interface{}, Meta)

@@ -31,6 +31,7 @@ type payLoad struct {
 	request        *http.Request
 	status         rfc.Status
 	ifRead         utils.SafeBool
+	ifFlushStatus  utils.SafeBool
 	params         map[string]uint
 	paramsIndex    map[uint]string
 	resolvedParams map[string]string
@@ -38,17 +39,20 @@ type payLoad struct {
 
 func (p *payLoad) Init(w http.ResponseWriter, r *http.Request, params map[string]uint) {
 	p.initTime = time.Now()
-	p.TryReset()
 	p.writer = w
 	p.request = r
 	p.status = rfc.StatusOK
 	p.params = params
-	p.resolvedParams = map[string]string{}
+	//p.resolvedParams = make(map[string]string)
 	p.empty.ForceSetFalse()
 	p.ifRead.ForceSetFalse()
+	p.ifFlushStatus.ForceSetFalse()
 }
 
 func (p *payLoad) TryReset() {
+	if p.ifFlushStatus.SetTrue() {
+		p.writer.WriteHeader(p.status)
+	}
 	if p.empty.SetTrue() {
 		p.writer = nil
 		p.request = nil
@@ -98,8 +102,9 @@ func (p *payLoad) Params(key string) string {
 	p.mu.Lock()
 	if len(p.params) > 0 && len(p.paramsIndex) == 0 {
 		p.paramsIndex = make(map[uint]string)
+		p.resolvedParams = make(map[string]string)
 		for i, v := range p.params {
-			p.paramsIndex[v-1] = i
+			p.paramsIndex[v] = i
 		}
 		started := false
 		var startedID uint = 0
@@ -174,12 +179,14 @@ func (p *payLoad) ResponseWriter() http.ResponseWriter {
 }
 
 func (p *payLoad) Write(wrt []byte) (int, error) {
+	if p.ifFlushStatus.SetTrue() {
+		p.writer.WriteHeader(p.status)
+	}
 	return p.writer.Write(wrt)
 }
 
 func (p *payLoad) WriteHeader(status rfc.Status) {
 	p.status = status
-	p.writer.WriteHeader(status)
 }
 
 func (p *payLoad) Header() http.Header {

@@ -104,6 +104,14 @@ BenchmarkTrie_GitHub_Static-16          86367999                67.4 ns/op      
 BenchmarkTrie_GitHub_Param1-16          69524283                86.7 ns/op             0 B/op          0 allocs/op
 
 ```
+> v0.4.0
+
+```bash
+BenchmarkRoute_GitHub_ALL-16               22116             52633 ns/op            2513 B/op         52 allocs/op
+BenchmarkRoute_GitHub_Static-16          6456816               183 ns/op               0 B/op          0 allocs/op
+BenchmarkRoute_GitHub_Param1-16          6372272               190 ns/op               0 B/op          0 allocs/op
+```
+
 > v0.3.0
 
 // 日志会极大影响性能，加上日志路由性能会下降一倍
