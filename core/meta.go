@@ -7,6 +7,9 @@ import (
 	"time"
 )
 
+// http包 原生处理函数
+type OriginFunc = func(w http.ResponseWriter, r *http.Request)
+
 // 元处理函数,非周期处理下对request 做处理
 type MetaFunc = func(m Meta)
 
@@ -34,4 +37,7 @@ type Meta interface {
 	StreamRead(io.Writer) (int64, error)
 	StreamWrite(io.Reader) (int64, error)
 	Request() *http.Request
+	ResponseWriter() http.ResponseWriter
+	// 禁用 meta 对 response 做处理, 用于用户自己管理 responseWriter
+	DisableSelfWriter()
 }

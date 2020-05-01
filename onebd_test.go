@@ -39,7 +39,7 @@ func (h *testHandler) Post() (interface{}, error) {
 
 func TestNew(t *testing.T) {
 	cfg := &core.Config{
-		Host:           "0.0.0.0:8080",
+		Host:           "0.0.0.0:8088",
 		Charset:        "",
 		TimeFormat:     "",
 		PostMaxMemory:  0,

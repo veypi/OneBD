@@ -181,6 +181,19 @@ func (r *route) Set(prefix string, fc interface{}, allowedMethods ...rfc.Method)
 	return tmp
 }
 
+func (r *route) WS(prefix string, upgrader core.WebSocketFunc) core.Router {
+	return r.Set(prefix, func(m core.Meta) {
+		m.DisableSelfWriter()
+		c, err := upgrader(m)
+		if err != nil {
+			log.Warn().Msg(err.Error())
+			return
+		}
+		defer c.Disconnect(err)
+		c.Wait()
+	})
+}
+
 func (r *route) Static(prefix string, directory string) {
 	dir, err := os.Stat(directory)
 	if err != nil {
@@ -256,7 +269,7 @@ func (r *route) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 		if m != nil {
 			log.WithNoCaller.Debug().Int("status", m.Status()).
 				Str("addr", req.RemoteAddr).
-				Int64("delta/ms", m.AliveTime().Microseconds()).
+				Int64("delta/ms", m.AliveTime().Milliseconds()).
 				Str("method", req.Method).
 				Msg(req.URL.Path)
 			meta.Release(m)
@@ -343,6 +356,8 @@ func DefaultCycle(fc interface{}, m core.Meta) {
 		HandleCycle(fc(), m)
 	case core.MetaFunc:
 		fc(m)
+	case core.OriginFunc:
+		fc(m.ResponseWriter(), m.Request())
 	default:
 		log.Warn().Interface("fc", fc).Msg("unknown fc to handle data")
 		m.WriteHeader(rfc.StatusNotFound)

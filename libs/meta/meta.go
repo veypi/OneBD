@@ -25,6 +25,7 @@ var pool = sync.Pool{
 // payLoad 请求基本处理包
 type payLoad struct {
 	mu             utils.FastLocker
+	disabled       bool
 	initTime       time.Time
 	empty          utils.SafeBool
 	writer         http.ResponseWriter
@@ -50,9 +51,8 @@ func (p *payLoad) Init(w http.ResponseWriter, r *http.Request, params map[string
 }
 
 func (p *payLoad) TryReset() {
-	if p.ifFlushStatus.SetTrue() {
-		p.writer.WriteHeader(p.status)
-	}
+	p.flushStatue()
+	p.disabled = false
 	if p.empty.SetTrue() {
 		p.writer = nil
 		p.request = nil
@@ -163,10 +163,11 @@ func (p *payLoad) StreamRead(wrt io.Writer) (int64, error) {
 	if p.ifRead.SetTrue() {
 		return io.Copy(wrt, p.request.Body)
 	}
-	return 0, errors.New("request bodt has been read")
+	return 0, errors.New("request body has been read")
 }
 
 func (p *payLoad) StreamWrite(src io.Reader) (int64, error) {
+	p.flushStatue()
 	return io.Copy(p.writer, src)
 }
 
@@ -178,11 +179,22 @@ func (p *payLoad) ResponseWriter() http.ResponseWriter {
 	return p.writer
 }
 
+func (p *payLoad) DisableSelfWriter() {
+	p.disabled = true
+}
+
 func (p *payLoad) Write(wrt []byte) (int, error) {
-	if p.ifFlushStatus.SetTrue() {
+	if p.disabled {
+		return 0, nil
+	}
+	p.flushStatue()
+	return p.writer.Write(wrt)
+}
+
+func (p *payLoad) flushStatue() {
+	if !p.disabled && p.ifFlushStatus.SetTrue() {
 		p.writer.WriteHeader(p.status)
 	}
-	return p.writer.Write(wrt)
 }
 
 func (p *payLoad) WriteHeader(status rfc.Status) {
