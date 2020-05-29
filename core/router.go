@@ -1,7 +1,7 @@
 package core
 
 import (
-	"github.com/lightjiang/OneBD/rfc"
+	"github.com/veypi/OneBD/rfc"
 	"net/http"
 )
 

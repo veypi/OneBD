@@ -2,9 +2,9 @@ package libs
 
 import (
 	"crypto/tls"
-	"github.com/lightjiang/OneBD/core"
-	"github.com/lightjiang/OneBD/libs/router"
-	"github.com/lightjiang/utils/log"
+	"github.com/veypi/OneBD/core"
+	"github.com/veypi/OneBD/libs/router"
+	"github.com/veypi/utils/log"
 	"golang.org/x/net/netutil"
 	"net"
 	"net/http"

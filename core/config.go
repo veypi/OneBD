@@ -2,7 +2,7 @@ package core
 
 import (
 	"crypto/tls"
-	"github.com/lightjiang/utils/log"
+	"github.com/veypi/utils/log"
 )
 
 type Config struct {

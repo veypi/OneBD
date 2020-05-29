@@ -1,10 +1,10 @@
 package OneBD
 
 import (
-	"github.com/lightjiang/OneBD/core"
-	"github.com/lightjiang/OneBD/libs"
-	"github.com/lightjiang/OneBD/libs/handler"
-	"github.com/lightjiang/OneBD/libs/hpool"
+	"github.com/veypi/OneBD/core"
+	"github.com/veypi/OneBD/libs"
+	"github.com/veypi/OneBD/libs/handler"
+	"github.com/veypi/OneBD/libs/hpool"
 )
 
 const (
@@ -19,6 +19,7 @@ type HandlerPool = core.HandlerPool
 type RequestLifeCycle = core.RequestLifeCycle
 type Config = core.Config
 type BaseHandler = handler.Base
+type WebsocketConn = core.WebSocketConn
 
 var NewHandlerPool = hpool.New
 

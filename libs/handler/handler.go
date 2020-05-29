@@ -1,10 +1,10 @@
 package handler
 
 import (
-	"github.com/lightjiang/OneBD/core"
-	"github.com/lightjiang/OneBD/rfc"
-	"github.com/lightjiang/utils"
-	"github.com/lightjiang/utils/log"
+	"github.com/veypi/OneBD/core"
+	"github.com/veypi/OneBD/rfc"
+	"github.com/veypi/utils"
+	"github.com/veypi/utils/log"
 )
 
 //Base  请求 基本处理流程

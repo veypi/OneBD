@@ -3,9 +3,9 @@ package meta
 import (
 	"encoding/json"
 	"errors"
-	"github.com/lightjiang/OneBD/core"
-	"github.com/lightjiang/OneBD/rfc"
-	"github.com/lightjiang/utils"
+	"github.com/veypi/OneBD/core"
+	"github.com/veypi/OneBD/rfc"
+	"github.com/veypi/utils"
 	"io"
 	"io/ioutil"
 	"net/http"

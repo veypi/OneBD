@@ -1,7 +1,7 @@
 package hpool
 
 import (
-	"github.com/lightjiang/OneBD/core"
+	"github.com/veypi/OneBD/core"
 	"sync"
 	"sync/atomic"
 )

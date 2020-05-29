@@ -1,11 +1,11 @@
 package router
 
 import (
-	"github.com/lightjiang/OneBD/core"
-	"github.com/lightjiang/OneBD/libs/meta"
-	"github.com/lightjiang/OneBD/rfc"
-	"github.com/lightjiang/utils"
-	"github.com/lightjiang/utils/log"
+	"github.com/veypi/OneBD/core"
+	"github.com/veypi/OneBD/libs/meta"
+	"github.com/veypi/OneBD/rfc"
+	"github.com/veypi/utils"
+	"github.com/veypi/utils/log"
 	"net/http"
 	"os"
 	"strconv"
@@ -189,7 +189,7 @@ func (r *route) WS(prefix string, upgrader core.WebSocketFunc) core.Router {
 			log.Warn().Msg(err.Error())
 			return
 		}
-		defer c.Disconnect(err)
+		defer c.Close()
 		c.Wait()
 	})
 }
