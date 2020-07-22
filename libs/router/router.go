@@ -224,7 +224,6 @@ func (r *route) Static(prefix string, directory string) {
 	var fs http.FileSystem = http.Dir(directory)
 	r.Set(prefix, func(m core.Meta) {
 		name := m.Params("path")
-		log.Warn().Msg("static " + name)
 		f, err := fs.Open(name)
 		if err != nil {
 			m.WriteHeader(rfc.StatusNotFound)
