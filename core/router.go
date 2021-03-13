@@ -1,6 +1,7 @@
 package core
 
 import (
+	"embed"
 	"github.com/veypi/OneBD/rfc"
 	"net/http"
 )
@@ -13,6 +14,9 @@ type Router interface {
 	WS(prefix string, upgrader WebSocketFunc) Router
 	// 设置静态资源访问
 	Static(prefix string, directory string)
+	EmbedDir(prefix string, fs embed.FS, fsPrefix string)
+	EmbedFile(prefix string, path []byte)
+
 	// 自路由
 	SubRouter(name string) Router
 	ServeHTTP(http.ResponseWriter, *http.Request)

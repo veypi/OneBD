@@ -1,11 +1,13 @@
 package router
 
 import (
+	"embed"
 	"github.com/veypi/OneBD/core"
 	"github.com/veypi/OneBD/libs/meta"
 	"github.com/veypi/OneBD/rfc"
 	"github.com/veypi/utils"
 	"github.com/veypi/utils/log"
+	"io"
 	"net/http"
 	"os"
 	"strconv"
@@ -241,6 +243,51 @@ func (r *route) Static(prefix string, directory string) {
 			return
 		}
 		http.ServeContent(m, m.Request(), info.Name(), info.ModTime(), f)
+	}, rfc.MethodGet)
+}
+
+func (r *route) EmbedFile(prefix string, path []byte) {
+	r.Set(prefix, func(m core.Meta) {
+		_, err := m.Write(path)
+		if err != nil {
+			log.Info().Msgf("write file failed: %s", err.Error())
+			m.WriteHeader(rfc.StatusBadRequest)
+		} else {
+			m.WriteHeader(rfc.StatusOK)
+		}
+	})
+}
+
+func (r *route) EmbedDir(prefix string, fs embed.FS, fsPrefix string) {
+	if strings.Contains(prefix, "*") {
+		panic("static prefix should not contain *")
+	}
+	if !strings.HasSuffix(prefix, "/") {
+		prefix += "/"
+	}
+	prefix += "*path"
+	r.Set(prefix, func(m core.Meta) {
+		name := fsPrefix + m.Params("path")
+		f, err := fs.Open(name)
+		if err != nil {
+			log.Info().Msgf("serve file failed: %s", err.Error())
+			m.WriteHeader(rfc.StatusNotFound)
+			return
+		}
+		defer f.Close()
+		info, err := f.Stat()
+		if err != nil {
+			log.Info().Msgf("serve file failed: %s", err.Error())
+			m.WriteHeader(rfc.StatusNotFound)
+			return
+		}
+		if info.IsDir() {
+			// TODO:: dir list
+			log.Info().Msgf("serve file failed: %s", err.Error())
+			m.WriteHeader(rfc.StatusNotFound)
+			return
+		}
+		http.ServeContent(m, m.Request(), info.Name(), info.ModTime(), f.(io.ReadSeeker))
 	}, rfc.MethodGet)
 }
 
