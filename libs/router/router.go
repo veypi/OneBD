@@ -246,9 +246,9 @@ func (r *route) Static(prefix string, directory string) {
 	}, rfc.MethodGet)
 }
 
-func (r *route) EmbedFile(prefix string, path []byte) {
+func (r *route) EmbedFile(prefix string, f []byte) {
 	r.Set(prefix, func(m core.Meta) {
-		_, err := m.Write(path)
+		_, err := m.Write(f)
 		if err != nil {
 			log.Info().Msgf("write file failed: %s", err.Error())
 			m.WriteHeader(rfc.StatusBadRequest)
