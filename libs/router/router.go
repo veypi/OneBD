@@ -407,6 +407,7 @@ func DefaultCycle(fc interface{}, m core.Meta) {
     case core.MetaFunc:
         fc(m)
     case core.OriginFunc:
+        m.DisableSelfWriter()
         fc(m.ResponseWriter(), m.Request())
     default:
         log.Warn().Interface("fc", fc).Msg("unknown fc to handle data")
