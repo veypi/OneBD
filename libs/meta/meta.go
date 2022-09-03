@@ -24,11 +24,11 @@ var pool = sync.Pool{
 
 // payLoad 请求基本处理包
 type payLoad struct {
+	writer         http.ResponseWriter
 	mu             utils.FastLocker
 	disabled       bool
 	initTime       time.Time
 	empty          utils.SafeBool
-	writer         http.ResponseWriter
 	request        *http.Request
 	status         rfc.Status
 	ifRead         utils.SafeBool
@@ -191,18 +191,18 @@ func (p *payLoad) Write(wrt []byte) (int, error) {
 	return p.writer.Write(wrt)
 }
 
-func (p *payLoad) flushStatue() {
-	if !p.disabled && p.ifFlushStatus.SetTrue() {
-		p.writer.WriteHeader(p.status)
-	}
-}
-
 func (p *payLoad) WriteHeader(status rfc.Status) {
 	p.status = status
 }
 
 func (p *payLoad) Header() http.Header {
 	return p.writer.Header()
+}
+
+func (p *payLoad) flushStatue() {
+	if !p.disabled && p.ifFlushStatus.SetTrue() {
+		p.writer.WriteHeader(p.status)
+	}
 }
 
 func (p *payLoad) AliveTime() time.Duration {

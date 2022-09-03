@@ -8,7 +8,7 @@ import (
 )
 
 const (
-	Version = "v0.4.3"
+	Version = "v0.4.4"
 )
 
 type Router = core.Router
