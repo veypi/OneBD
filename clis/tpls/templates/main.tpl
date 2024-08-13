@@ -17,7 +17,8 @@ import (
 
 func main() {
 	cfg.CMD.Command = runWeb
-	err := cfg.CMD.Parse()
+	cfg.CMD.Parse()
+	err := cfg.CMD.Run()
 	if err != nil {
 		logx.Warn().Msg(err.Error())
 	}

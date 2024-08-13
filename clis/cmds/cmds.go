@@ -27,11 +27,11 @@ var (
 var (
 	RepoName   = Main.String("repo", "app", "repository name")
 	DirPath    = Main.String("dir", "./", "dir to generate")
-	ForceWrite = Main.Bool("force", false, "force to write file")
+	ForceWrite = Main.Bool("y", false, "force to overwrite file")
 )
 
 var LogLevel = Main.String("l", "info", "log level: trace|debug|info|warn|error|fatal")
 
-func Parse() error {
-	return Main.Parse()
+func Parse() {
+	Main.Parse()
 }

@@ -19,41 +19,24 @@ type config struct {
 
 var Config = &config{}
 
-var CMD = flags.New("{{.repo}}", "the backend server of main")
+var CMD = flags.New("{{.common.repo}}", "the backend server of {{.common.repo}}")
 var CfgDump = CMD.SubCommand("cfg", "generate cfg file")
 
-var configFile = CMD.String("f", "./dev.yml", "the config file")
+var configFile = CMD.String("f", "./dev.yaml", "the config file")
 
-var (
-	host = CMD.String("host", "", "host")
-	port = CMD.Int("port", 0, "port")
-)
 
 func init() {
+	CMD.StringVar(&Config.Host, "h", "0.0.0.0", "host")
+	CMD.IntVar(&Config.Port, "p", 6000, "port")
+	CMD.StringVar(&Config.LoggerLevel, "l", "info", "log level")
 	CMD.Before = func() error {
-		err := LoadCfg()
-		if err != nil {
-			return err
-		}
-		if *host != "" {
-			Config.Host = *host
-		}
-		if *port != 0 {
-			Config.Port = *port
-		}
+		flags.LoadCfg(*configFile, Config)
+		CMD.Parse()
+		logx.SetLevel(logx.AssertFuncErr(logx.ParseLevel(Config.LoggerLevel)))
 		return nil
 	}
-	CfgDump.Command = DumpCfg
+	CfgDump.Command = func() error {
+		flags.DumpCfg(*configFile, Config)
+		return nil
+	}
 }
-
-func LoadCfg() error {
-	flags.LoadCfg(*configFile, Config)
-	return nil
-}
-
-func DumpCfg() error {
-	logx.Debug().Msgf("%v", *Config)
-	flags.DumpCfg(*configFile, Config)
-	return nil
-}
-

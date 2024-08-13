@@ -8,12 +8,8 @@
 package app
 
 import (
-	"errors"
-	"fmt"
-
 	"github.com/veypi/OneBD/clis/cmds"
 	"github.com/veypi/OneBD/clis/tpls"
-	"github.com/veypi/utils"
 	"github.com/veypi/utils/logx"
 )
 
@@ -26,15 +22,15 @@ func init() {
 }
 
 func build_app() error {
-	fname := utils.PathJoin(*cmds.DirPath, "main.go")
-	if utils.FileExists(fname) && !*cmds.ForceWrite {
-		return errors.New(fmt.Sprintf("file %s exists, use -force to overwrite", fname))
-	}
-	logx.Info().Msgf("auto generate %s", fname)
-	fObj := logx.AssertFuncErr(utils.MkFile(fname))
-	defer fObj.Close()
-	logx.AssertError(tpls.T("main").Execute(fObj, tpls.Params()))
-	logx.AssertError(tpls.GoFmt(fname))
+	mainF := tpls.OpenFile("main.go")
+	defer mainF.Close()
+	logx.AssertError(tpls.T("main").Execute(mainF, tpls.Params()))
+
+	cfgF := tpls.OpenFile("cfg/cfg.go")
+	defer cfgF.Close()
+	logx.AssertError(tpls.T("cfg/cfg").Execute(cfgF, tpls.Params()))
+
+	logx.AssertError(tpls.GoFmt("."))
 	logx.AssertError(tpls.GoInit(*cmds.RepoName))
 	logx.AssertError(tpls.GoModtidy())
 	return nil

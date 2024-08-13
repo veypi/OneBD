@@ -26,6 +26,8 @@ func GoInit(name string) error {
 }
 
 func GoModtidy() error {
+	run("bash", "-c", "echo '\nreplace github.com/veypi/OneBD => ../../workspace/OneBD/\n' >> go.mod")
+	run("bash", "-c", "echo '\nreplace github.com/veypi/utils => ../../workspace/OceanCurrent/utils/\n' >> go.mod")
 	_, err := run("go", "mod", "tidy")
 	return err
 }

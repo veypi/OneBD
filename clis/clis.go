@@ -24,7 +24,8 @@ func main() {
 		logx.SetLevel(l)
 		return nil
 	}
-	err := cmds.Parse()
+	cmds.Parse()
+	err := cmds.Main.Run()
 	if err != nil {
 		logx.Warn().Msg(err.Error())
 	}

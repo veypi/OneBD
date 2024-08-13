@@ -9,8 +9,10 @@ package tpls
 
 import (
 	"embed"
+	"fmt"
 	"html/template"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/veypi/OneBD/clis/cmds"
@@ -46,6 +48,14 @@ func (p params) With(k string, v any) params {
 	return p
 }
 
+func OpenFile(p string) *os.File {
+	p = utils.PathJoin(*cmds.DirPath, p)
+	if utils.FileExists(p) {
+		confirmYes(fmt.Sprintf("file %s exists, confirm to overwrite", p))
+	}
+	logx.Info().Msgf("auto generate %s", p)
+	return logx.AssertFuncErr(utils.MkFile(p))
+}
 func T(p string) *template.Template {
 	return loadTpl(p)
 }
@@ -68,4 +78,21 @@ func loadTpl(f string) *template.Template {
 	}
 	tmpl := logx.AssertFuncErr(template.New("").Parse(string(body)))
 	return tmpl
+}
+
+func confirmYes(txt string) {
+	if *cmds.ForceWrite {
+		return
+	}
+	var input string
+	fmt.Printf("\033[31m%s, y/n:\033[0m", txt)
+	_, err := fmt.Scanln(&input)
+	if err != nil {
+		os.Exit(1)
+	}
+
+	input = strings.ToLower(input)
+	if input != "y" {
+		os.Exit(1)
+	}
 }
