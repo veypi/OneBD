@@ -1,28 +1,18 @@
+//
+// onebd.go
+// Copyright (C) 2024 veypi <i@veypi.com>
+// 2024-08-08 19:41
+// Distributed under terms of the MIT license.
+//
+
 package OneBD
 
-import (
-	"github.com/veypi/OneBD/core"
-	"github.com/veypi/OneBD/libs"
-	"github.com/veypi/OneBD/libs/handler"
-	"github.com/veypi/OneBD/libs/hpool"
-)
+import "github.com/veypi/OneBD/rest/router"
 
 const (
-	Version = "v0.4.4"
+	Version = "v0.5.0"
 )
 
-type Router = core.Router
-type Meta = core.Meta
-type MetaFunc = core.MetaFunc
-type Handler = core.Handler
-type HandlerPool = core.HandlerPool
-type RequestLifeCycle = core.RequestLifeCycle
-type Config = core.Config
-type BaseHandler = handler.Base
-type WebsocketConn = core.WebSocketConn
+type X = router.X
 
-var NewHandlerPool = hpool.New
-
-func New(cfg *Config) *libs.Application {
-	return libs.NewApplication(cfg)
-}
+var NewRouter = router.NewRouter

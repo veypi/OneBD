@@ -1,21 +1,27 @@
+//
+// router_test.go
+// Copyright (C) 2024 veypi <i@veypi.com>
+// 2024-08-08 18:20
+// Distributed under terms of the MIT license.
+//
+
 package router
 
 import (
-	"github.com/veypi/OneBD/core"
-	"github.com/veypi/OneBD/libs/handler"
-	"github.com/veypi/OneBD/rfc"
-	"github.com/veypi/utils/log"
 	"net/http"
-	"strings"
 	"testing"
+
+	"github.com/veypi/utils/logx"
 )
 
 const paramPrefix = "paramPrefix"
 const checkPath = false
+const twentyColon = "/:a/:b/:c/:d/:e/:f/:g/:h/:i/:j/:k/:l/:m/:n/:o/:p/:q/:r/:s/:t"
+const twentyBrace = "/{a}/{b}/{c}/{d}/{e}/{f}/{g}/{h}/{i}/{j}/{k}/{l}/{m}/{n}/{o}/{p}/{q}/{r}/{s}/{t}"
+const twentyRoute = "/a/b/c/d/e/f/g/h/i/j/k/l/m/n/o/p/q/r/s/t"
 
 type fakeResponseWriter struct {
-	code int
-	body string
+	d string
 }
 
 func (f *fakeResponseWriter) Header() http.Header {
@@ -23,63 +29,55 @@ func (f *fakeResponseWriter) Header() http.Header {
 }
 
 func (f *fakeResponseWriter) Write(p []byte) (int, error) {
-	f.body += string(p)
+	f.d = string(p)
 	return len(p), nil
 }
 
 func (f *fakeResponseWriter) WriteHeader(statusCode int) {
-	f.code = statusCode
 	return
 }
 
-type testHandler struct {
-	path string
-	handler.Base
-}
-
-func (h *testHandler) OnResponse(data interface{}) {
-	if checkPath {
-		// 为置换变量可能会触发错误
-		reqPath := h.Meta().RequestPath()
-		reqPath = strings.Replace(reqPath, paramPrefix, ":", -1)
-		if h.path != reqPath {
-			log.Warn().Str("request", h.Meta().RequestPath()).Str("handle", h.path).Msg("route error")
-		}
-		h.Meta().Write([]byte(h.Meta().RequestPath()))
-	}
-	h.Meta().WriteHeader(rfc.StatusOK)
-	return
-}
-
-func githubRouter() *route {
-	r := &route{
-		cycle: DefaultCycle,
-	}
-	r.top = r
-	for _, api := range githubAPi {
-		//tempPath := api.path
-		//r.Set(api.path, hpool.New(func() core.Handler {
-		//	return &testHandler{path: tempPath}
-		//}), api.methods...)
-		r.Set(api.path, api.path, api.methods...)
-		//fmt.Printf("%s         %v\n", api.path, api.methods)
-	}
-	p := ""
-	r.SetRequestLifeCycle(func(i interface{}, meta core.Meta) {
-		p = i.(string)
-		if meta.RequestPath() != p {
-			log.Warn().Msg(meta.RequestPath() + " != router >" + p)
-		}
+func githubRouter() Router {
+	r := NewRouter()
+	r.Use(func(x *X) error {
+		logx.Info().Int("id", 1).Str("p", x.Request.URL.Path).Msg(x.Params[0][0])
+		err := x.Next()
+		logx.Info().Int("id", 10).Err(err).Str("p", x.Request.URL.Path).Msg(x.Params[0][1])
+		return err
 	})
-	//fmt.Println(r.String())
-	//log.Info().Msg(r.String())
+	r.Use(func(x *X) error {
+		logx.Info().Int("id", 2).Str("p", x.Request.URL.Path).Msg(x.Params.GetStr("sha"))
+		return nil
+	})
+	for _, api := range githubAPi {
+		for _, m := range api.methods {
+			r.Set(api.path, m, func(x *X) error {
+				logx.Info().Int("id", 0).Str("p", x.Request.URL.Path).Msg("0")
+				x.Write([]byte(x.Request.URL.Path))
+				return nil
+			})
+		}
+	}
+	r.Use(func(x *X) error {
+		logx.Info().Int("id", 3).Str("p", x.Request.URL.Path).Msg("0")
+		// return errors.New("123")
+		return nil
+	})
+	r.Use(func(x *X) error {
+		logx.Info().Int("id", 4).Str("p", x.Request.URL.Path).Msg("0")
+		return nil
+	})
+	r.Use(func(x *X) error {
+		logx.Info().Int("id", 5).Str("p", x.Request.URL.Path).Msg(x.Params.GetStr("owner"))
+		return nil
+	})
 	return r
 }
 
-var testR *route
+var testR Router
 
 func init() {
-	log.SetLevel(log.InfoLevel)
+	logx.SetLevel(logx.WarnLevel)
 	testR = githubRouter()
 }
 
@@ -95,8 +93,6 @@ func BenchmarkRoute_GitHub_ALL(b *testing.B) {
 			req.RequestURI = api.path
 			for _, m := range api.methods {
 				req.Method = m
-				w.body = ""
-				w.code = 0
 				testR.ServeHTTP(w, req)
 			}
 		}
@@ -106,7 +102,6 @@ func BenchmarkRoute_GitHub_ALL(b *testing.B) {
 func BenchmarkRoute_GitHub_Static(b *testing.B) {
 	req, _ := http.NewRequest("POST", "/markdown/raw", nil)
 	for i := 0; i < b.N; i++ {
-		w.body = ""
 		testR.ServeHTTP(w, req)
 	}
 }
@@ -115,36 +110,34 @@ func BenchmarkRoute_GitHub_Param1(b *testing.B) {
 	//temPath = strings.Replace(temPath, ":", paramPrefix, -1)
 	req, _ := http.NewRequest("GET", temPath, nil)
 	for i := 0; i < b.N; i++ {
-		w.body = ""
 		testR.ServeHTTP(w, req)
 	}
 }
-func TestRoute_ServeHTTP2(t *testing.T) {
-	w := new(fakeResponseWriter)
-	req, _ := http.NewRequest("GET", "/markdown/raw/?a=1", nil)
-	w.body = ""
-	testR.ServeHTTP(w, req)
-}
+
+// func TestRoute_ServeHTTP2(t *testing.T) {
+// 	w := new(fakeResponseWriter)
+// 	req, _ := http.NewRequest("GET", "/markdown/raw/?a=1", nil)
+// 	testR.ServeHTTP(w, req)
+// }
 
 func TestRoute_ServeHTTP(t *testing.T) {
 	w := new(fakeResponseWriter)
-	req, _ := http.NewRequest(rfc.MethodGet, "/", nil)
-	temPath := ""
-	for _, api := range githubAPi {
-		//temPath = strings.Replace(api.path, ":", paramPrefix, -1)
+	req, _ := http.NewRequest(http.MethodGet, "/", nil)
+	temPath := twentyRoute
+	for _, api := range githubAPi[0:10] {
 		temPath = api.path
 		req.URL.Path = temPath
 		req.RequestURI = temPath
 		for _, m := range api.methods {
 			req.Method = m
-			w.body = ""
-			w.code = 0
+			w.d = ""
 			testR.ServeHTTP(w, req)
-			//if w.code != 200 || w.body != temPath {
-			//	t.Errorf("request %s(%s): but recive %d, %s;\n",
-			//		api.path, m, w.code, w.body)
-			//	return
-			//}
+			// t.Error(w.d)
+			if w.d != temPath {
+				t.Errorf("request %s(%s): but recive  %s;\n",
+					api.path, m, w.d)
+				return
+			}
 		}
 	}
 }
@@ -153,6 +146,7 @@ var githubAPi = []struct {
 	path    string
 	methods []string
 }{
+	{twentyColon, []string{"GET"}},
 	{"/", []string{"GET"}},
 	{"/gitignore/templates", []string{"GET"}},
 	{"/repos/:owner/:repo/commits/:sha", []string{"GET"}},

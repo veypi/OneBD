@@ -1,36 +1,35 @@
-package libs
+//
+// server.go
+// Copyright (C) 2024 veypi <i@veypi.com>
+// 2024-08-06 20:00
+// Distributed under terms of the MIT license.
+//
+
+package rest
 
 import (
 	"crypto/tls"
-	"github.com/veypi/OneBD/core"
-	"github.com/veypi/OneBD/libs/router"
-	"github.com/veypi/utils/log"
-	"golang.org/x/net/netutil"
 	"net"
 	"net/http"
+
+	"github.com/veypi/OneBD/rest/router"
+	"github.com/veypi/utils/logx"
+	"golang.org/x/net/netutil"
 )
 
-type Application struct {
-	config   *core.Config
-	server   *http.Server
-	listener net.Listener
-	router   core.Router
-	// todo:: log 分级处理log
-	// todo:: router
-	//
-}
+type X = router.X
 
-func NewApplication(cfg *core.Config) *Application {
-	if cfg == nil {
-		cfg = core.DefaultConfig()
+func New(c *RestConf) (*Application, error) {
+	if err := c.IsValid(); err != nil {
+		return nil, err
 	}
-	cfg.BuildLogger()
 	app := &Application{
-		config: cfg,
+		config: c,
+		router: router.NewRouter(),
 	}
 	app.server = &http.Server{
-		Addr:              cfg.Host,
-		TLSConfig:         cfg.TlsCfg,
+		Addr:              c.Url(),
+		TLSConfig:         c.TlsCfg,
 		ReadTimeout:       0,
 		ReadHeaderTimeout: 0,
 		WriteTimeout:      0,
@@ -44,30 +43,27 @@ func NewApplication(cfg *core.Config) *Application {
 		// TODO
 		ConnContext: nil,
 	}
-	// 判断是否使用内置路由
-	if cfg.Router != nil {
-		app.router = cfg.Router
-	} else {
-		app.router = router.NewMainRouter()
-	}
-	app.server.Handler = app.router
-	return app
+	app.server.Handler = app.Router()
+	return app, nil
 }
 
-func (app *Application) Router() core.Router {
+type Application struct {
+	router   router.Router
+	config   *RestConf
+	server   *http.Server
+	listener net.Listener
+}
+
+func (app *Application) Router() router.Router {
 	return app.router
 }
 
-func (app *Application) Config() *core.Config {
-	return app.config
-}
-
 func (app *Application) Run() error {
+	logx.WithNoCaller.Info().Msg("listening " + app.config.Url())
 	l, e := app.netListener()
 	if e != nil {
 		return e
 	}
-	log.WithNoCaller.Info().Msg("listening http://" + app.config.Host)
 	return app.server.Serve(l)
 }
 
@@ -75,7 +71,7 @@ func (app *Application) netListener() (net.Listener, error) {
 	if app.listener != nil {
 		return app.listener, nil
 	}
-	l, err := net.Listen("tcp", app.config.Host)
+	l, err := net.Listen("tcp", app.config.Url())
 	if err != nil {
 		return nil, err
 	}
