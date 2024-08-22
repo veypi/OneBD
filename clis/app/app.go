@@ -26,7 +26,7 @@ func build_app() error {
 	defer mainF.Close()
 	logx.AssertError(tpls.T("main").Execute(mainF, tpls.Params()))
 
-	cfgF := tpls.OpenFile("cfg/cfg.go")
+	cfgF := tpls.OpenFile("cfg", "cfg.go")
 	defer cfgF.Close()
 	logx.AssertError(tpls.T("cfg/cfg").Execute(cfgF, tpls.Params()))
 

@@ -12,6 +12,7 @@ cmd=go run clis.go -l debug --dir ${cache} -y --repo testapp
 
 test:clean
 	@${cmd} app  new
+	@${cmd} model -n app
 
 clean:
 	@rm -rf ${cache}/*

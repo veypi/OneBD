@@ -10,9 +10,9 @@ package tpls
 import (
 	"embed"
 	"fmt"
-	"html/template"
 	"os"
 	"strings"
+	"text/template"
 	"time"
 
 	"github.com/veypi/OneBD/clis/cmds"
@@ -48,23 +48,23 @@ func (p params) With(k string, v any) params {
 	return p
 }
 
-func OpenFile(p string) *os.File {
-	p = utils.PathJoin(*cmds.DirPath, p)
-	if utils.FileExists(p) {
-		confirmYes(fmt.Sprintf("file %s exists, confirm to overwrite", p))
+func OpenFile(p ...string) *os.File {
+	fpath := utils.PathJoin(append([]string{*cmds.DirPath}, p...)...)
+	if utils.FileExists(fpath) {
+		confirmYes(fmt.Sprintf("file %s exists, confirm to overwrite", fpath))
 	}
-	logx.Info().Msgf("auto generate %s", p)
-	return logx.AssertFuncErr(utils.MkFile(p))
+	logx.Info().Msgf("auto generate %s", fpath)
+	return logx.AssertFuncErr(utils.MkFile(fpath))
 }
-func T(p string) *template.Template {
-	return loadTpl(p)
+func T(p ...string) *template.Template {
+	return loadTpl(p...)
 }
 
 //go:embed templates
 var tplFs embed.FS
 
-func loadTpl(f string) *template.Template {
-	f = f + ".tpl"
+func loadTpl(fragment ...string) *template.Template {
+	f := utils.PathJoin(fragment...) + ".tpl"
 	body, err := tplFs.ReadFile("templates/" + f)
 	if err != nil {
 		logx.Warn().Msgf("load origin template %s error: %v\n%s\n\n------", f, err, body)
@@ -88,11 +88,11 @@ func confirmYes(txt string) {
 	fmt.Printf("\033[31m%s, y/n:\033[0m", txt)
 	_, err := fmt.Scanln(&input)
 	if err != nil {
-		os.Exit(1)
+		os.Exit(0)
 	}
 
 	input = strings.ToLower(input)
 	if input != "y" {
-		os.Exit(1)
+		os.Exit(0)
 	}
 }
