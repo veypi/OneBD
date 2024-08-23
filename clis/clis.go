@@ -8,6 +8,7 @@
 package main
 
 import (
+	_ "github.com/veypi/OneBD/clis/api"
 	_ "github.com/veypi/OneBD/clis/app"
 	"github.com/veypi/OneBD/clis/cmds"
 	_ "github.com/veypi/OneBD/clis/model"

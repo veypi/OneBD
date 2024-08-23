@@ -16,17 +16,14 @@ var (
 	Model = Main.SubCommand("model", "generate code")
 	App   = Main.SubCommand("app", "generate application code")
 	Tpl   = Main.SubCommand("tpl", "template tools")
+	Api   = Main.SubCommand("api", "api tools")
 )
 
 var (
-	apiGen   = Main.SubCommand("api", "generate api code")
-	jsGen    = Main.SubCommand("js", "generate js code")
-	modelGen = Main.SubCommand("model", "generate a new object model")
-)
-
-var (
-	RepoName   = Main.String("repo", "app", "repository name")
-	DirPath    = Main.String("dir", "./", "dir to generate")
+	RepoName   = Main.String("repo", "app", "repository name, for example: app,github.com/veypi/OneBD")
+	DirRoot    = Main.String("dir", "./", "repo root dir")
+	DirApi     = Main.String("dirapi", "api", "api dir")
+	DirModel   = Main.String("dirmodel", "models", "model dir")
 	ForceWrite = Main.Bool("y", false, "force to overwrite file")
 )
 

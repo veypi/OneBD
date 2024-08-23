@@ -8,7 +8,10 @@
 package {{.package}}
 
 import (
-    {{range .imports}}"{{.}}"{{end}}
+    "github.com/veypi/OneBD/rest"
 )
 
-{{.structs}}
+
+func Use(r rest.Router) {
+    r = r.SubRouter("{{.package}}")
+}

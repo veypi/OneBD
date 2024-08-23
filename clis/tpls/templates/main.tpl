@@ -4,12 +4,12 @@
 // 2024-08-07 15:25
 // Distributed under terms of the MIT license.
 //
-{{.common.noedit}}
 
 package main
 
 import (
 	"{{.common.repo}}/cfg"
+	"{{.common.repo}}/{{.common.api}}"
 
 	"github.com/veypi/OneBD/rest"
 	"github.com/veypi/utils/logx"
@@ -29,6 +29,7 @@ func runWeb() error {
 	if err != nil {
 		return err
 	}
+	{{.common.api}}.Use(app.Router())
 	app.Router().Print()
 	return app.Run()
 }

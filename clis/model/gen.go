@@ -1,7 +1,7 @@
 //
-// model.go
+// gen.go
 // Copyright (C) 2024 veypi <i@veypi.com>
-// 2024-08-12 17:12
+// 2024-08-23 18:29
 // Distributed under terms of the MIT license.
 //
 
@@ -9,11 +9,13 @@ package model
 
 import (
 	"bytes"
+	"fmt"
 	"go/ast"
 	"go/parser"
 	"go/printer"
 	"go/token"
-	"regexp"
+	"os"
+	"path/filepath"
 	"sort"
 	"strings"
 
@@ -24,41 +26,49 @@ import (
 )
 
 var (
-	newModel = cmds.Model.SubCommand("new", "generate new model")
-	nameObj  = newModel.String("n", "user", "target model name")
+	targetObj = genCmd.String("t", "", "target model path or dir")
 )
-
-var (
-	nameRegex = regexp.MustCompile(`^[a-zA-Z][a-zA-Z0-9]*$`)
-)
-
-func init() {
-	newModel.Command = new_model
-	cmds.Model.Command = gen_model
-}
-
-func new_model() error {
-	name := []byte(*nameObj)
-	name[0] = bytes.ToLower(name[:1])[0]
-	fname := string(name)
-	name[0] = bytes.ToUpper(name[:1])[0]
-	objName := string(name)
-
-	fObj := tpls.OpenFile("models", fname+".go")
-	defer fObj.Close()
-	return tpls.T("models/obj").Execute(fObj, tpls.Params().With("obj", objName))
-}
-
-var methodReg = regexp.MustCompile(`methods:"([^"]+)"`)
-var allowedMethods = []string{
-	"Get", "List", "Post", "Put",
-	"Patch", "Delete"}
 
 func gen_model() error {
+	root := utils.PathJoin(*cmds.DirRoot, *cmds.DirModel)
+	if *targetObj != "" {
+		root = utils.PathJoin(root, *targetObj)
+	}
+	if !utils.FileExists(root) {
+		return fmt.Errorf("file or dir not exists: %v", root)
+	}
+	var err error
+	if utils.PathIsDir(root) {
+		err = gen_from_dir(root)
+	} else {
+		err = gen_from_file(root)
+	}
+	return err
+}
 
+func gen_from_dir(dir string) error {
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return err
+	}
+
+	for _, entry := range entries {
+		fullPath := filepath.Join(dir, entry.Name())
+		if entry.IsDir() {
+			err = gen_from_dir(fullPath)
+		} else if !strings.HasSuffix(fullPath, "_gen.go") {
+			err = gen_from_file(fullPath)
+		}
+		if err != nil {
+			return err
+		}
+	}
+	return err
+}
+
+func gen_from_file(fname string) error {
 	fset := token.NewFileSet()
-	filename := utils.PathJoin(*cmds.DirPath, "models", "user.go")
-	node, err := parser.ParseFile(fset, filename, nil, parser.AllErrors)
+	node, err := parser.ParseFile(fset, fname, nil, parser.AllErrors)
 	if err != nil {
 		return err
 	}
@@ -135,9 +145,9 @@ func gen_model() error {
 		return err
 	}
 
-	fObj := tpls.OpenFile("models", "user_gen.go")
+	fObj := tpls.OpenAbsFile(filepath.Dir(fname), strings.ReplaceAll(filepath.Base(fname), ".go", "_gen.go"))
 	defer fObj.Close()
-	return tpls.T("models/gen").Execute(fObj, tpls.Params().With("structs", f.String()).With("imports", importsList))
+	return tpls.T("models/gen").Execute(fObj, tpls.Params().With("structs", f.String()).With("imports", importsList).With("package", filepath.Base(filepath.Dir(fname))))
 }
 
 // checkAndAddImport 检查字段类型并根据需要添加相应的import路径
