@@ -270,7 +270,7 @@ func (r *route) Set(prefix string, method string, handlers ...any) Router {
 			fcs = append(tmp_route.middleware, fcs...)
 		}
 		if tmp_route.parent != nil {
-			tmp_route = tmp.parent
+			tmp_route = tmp_route.parent
 		} else {
 			break
 		}

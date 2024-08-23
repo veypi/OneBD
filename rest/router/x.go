@@ -47,6 +47,27 @@ func (x *X) Next() error {
 	return x.Next()
 }
 
+func (x *X) next(attach any) error {
+	if x.fid >= len(x.fcs) {
+		return nil
+	}
+	fc := x.fcs[x.fid]
+	x.fid++
+	var err error
+	switch fc := fc.(type) {
+	case fc0:
+		err = fc(x)
+	case fc1:
+		err = fc(x.ResponseWriter, x.Request)
+	case fc2:
+		fc(x.ResponseWriter, x.Request)
+	}
+	if err != nil {
+		return err
+	}
+	return x.Next()
+}
+
 func (x *X) JSON(data any) error {
 	v, err := json.Marshal(data)
 	if err != nil {

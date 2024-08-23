@@ -18,6 +18,7 @@ import (
 )
 
 type X = router.X
+type Router = router.Router
 
 func New(c *RestConf) (*Application, error) {
 	if err := c.IsValid(); err != nil {
