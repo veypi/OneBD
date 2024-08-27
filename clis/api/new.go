@@ -10,10 +10,7 @@ package api
 import (
 	"fmt"
 	"go/ast"
-	"go/parser"
-	"go/printer"
 	"go/token"
-	"os"
 	"strings"
 
 	"github.com/veypi/OneBD/clis/cmds"
@@ -22,19 +19,27 @@ import (
 	"github.com/veypi/utils/logx"
 )
 
-func new_model() error {
+func new_api() error {
 	if !nameRegex.MatchString(*nameObj) {
 		panic("invalid name")
 	}
 	fragment := strings.Split(*nameObj, ".")
 	name := fragment[len(fragment)-1]
-	fragment = append([]string{*cmds.DirApi}, fragment...)
 	fname := utils.CamelToSnake(name)
 	fragment[len(fragment)-1] = fname + ".go"
 
 	fObj := tpls.OpenFile(fragment...)
 	defer fObj.Close()
-	err := tpls.T("api", "new").Execute(fObj, tpls.Params().With("package", fragment[len(fragment)-2]).With("obj", utils.SnakeToPrivateCamel(fname)).With("Obj", utils.SnakeToCamel(fname)))
+	packageName := *cmds.DirApi
+	if len(fragment) > 1 {
+		packageName = utils.CamelToSnake(fragment[len(fragment)-2])
+	}
+	err := tpls.T("api", "new").Execute(fObj, tpls.Params().
+		With("package", packageName).
+		With("s_obj", fname).
+		With("obj", utils.SnakeToPrivateCamel(fname)).
+		With("Obj", utils.SnakeToCamel(fname)),
+	)
 	logx.AssertError(err)
 	fragment[len(fragment)-1] = fname
 	logx.AssertError(addRouter(false, fragment))
@@ -43,12 +48,12 @@ func new_model() error {
 }
 
 func addRouter(isDir bool, fragments []string) error {
-	if len(fragments) <= 1 {
+	if len(fragments) <= 0 {
 		return nil
 	}
 	name := fragments[len(fragments)-1]
 	fragments[len(fragments)-1] = "init.go"
-	initPath := utils.PathJoin(append([]string{*cmds.DirRoot}, fragments...)...)
+	initPath := utils.PathJoin(append([]string{*cmds.DirRoot, *cmds.DirApi}, fragments...)...)
 	if !utils.FileExists(initPath) {
 		logx.AssertError(newRouterInInit(fragments...))
 	}
@@ -56,21 +61,22 @@ func addRouter(isDir bool, fragments []string) error {
 	return addRouter(true, fragments[:len(fragments)-1])
 }
 
+// 在 init.go 中添加路由 xxx.Use(r) or useXxx(r)
+// isDir: 是否是目录
+// fcName: 资源名 snake_case
+// fragments: 文件路径片段，相对于api dir
 func appendRouterInInit(isDir bool, fcName string, fragments ...string) error {
-	fAbsPath := utils.PathJoin(append([]string{*cmds.DirRoot}, fragments...)...)
-	packageName := fmt.Sprintf(`"%s/%s/%s"`, *cmds.RepoName, strings.Join(fragments[:len(fragments)-1], "/"), fcName)
-	fset := token.NewFileSet()
-	node, err := parser.ParseFile(fset, fAbsPath, nil, parser.ParseComments)
-	if err != nil {
-		return fmt.Errorf("Error parsing file: %v", err)
-	}
+	fAbsPath := utils.PathJoin(append([]string{*cmds.DirRoot, *cmds.DirApi}, fragments...)...)
+	packageName := `"` + utils.PathJoin(*cmds.RepoName, *cmds.DirApi, strings.Join(fragments[:len(fragments)-1], "/"), fcName) + `"`
+
+	fAst := logx.AssertFuncErr(tpls.NewAst(fAbsPath))
 
 	// 标记是否找到并添加了 xxx.Use(r)
 	shouldAddUse := false
 	importAdded := false
 
 	//  查找 `Use` 函数
-	ast.Inspect(node, func(n ast.Node) bool {
+	fAst.Inspect(func(n ast.Node) bool {
 		// 查找函数声明
 		if funcDecl, ok := n.(*ast.FuncDecl); ok {
 			if funcDecl.Name.Name == "Use" {
@@ -121,13 +127,18 @@ func appendRouterInInit(isDir bool, fcName string, fragments ...string) error {
 
 					//  如果没有 `useXxx(r)`，则添加
 					if !hasUseRouter {
+						arg := "r"
+						if fcName != fAst.Name.Name {
+							arg = fmt.Sprintf(`r.SubRouter(":%s_id/%s")`, fAst.Name.Name, fcName)
+						}
 						newCall := &ast.ExprStmt{
 							X: &ast.CallExpr{
 								Fun:  ast.NewIdent(useXxx),
-								Args: []ast.Expr{ast.NewIdent("r")},
+								Args: []ast.Expr{ast.NewIdent(arg)},
 							},
 						}
 						funcDecl.Body.List = append(funcDecl.Body.List, newCall)
+						shouldAddUse = true
 					}
 				}
 			}
@@ -161,7 +172,6 @@ func appendRouterInInit(isDir bool, fcName string, fragments ...string) error {
 
 	// 如果没有找到现有的 import block，则需要创建一个新的
 	if !importAdded && isDir {
-		fmt.Println("Creating new import block for xxx")
 		newImport := &ast.GenDecl{
 			Tok: token.IMPORT,
 			Specs: []ast.Spec{
@@ -173,28 +183,23 @@ func appendRouterInInit(isDir bool, fcName string, fragments ...string) error {
 				},
 			},
 		}
-		node.Decls = append([]ast.Decl{newImport}, node.Decls...)
+		fAst.Decls = append([]ast.Decl{newImport}, fAst.Decls...)
 	}
 
-	// 5. 覆写文件
-	if shouldAddUse || !importAdded {
-		outputFilename := fAbsPath
-		f, err := os.Create(outputFilename)
-		if err != nil {
-			return fmt.Errorf("Error creating file: %v", err)
-		}
-		defer f.Close()
-
-		if err := printer.Fprint(f, fset, node); err != nil {
-			return fmt.Errorf("Error writing to file: %v", err)
-		}
+	// 覆写文件
+	if shouldAddUse {
+		return fAst.Dump(fAbsPath)
 	}
 
 	return nil
 }
 
 func newRouterInInit(fragments ...string) error {
-	fObj := tpls.OpenFile(fragments...)
+	fObj := tpls.OpenFile(append([]string{*cmds.DirApi}, fragments...)...)
 	defer fObj.Close()
-	return tpls.T("api", "init").Execute(fObj, tpls.Params().With("package", fragments[len(fragments)-2]))
+	packageName := *cmds.DirApi
+	if len(fragments) > 1 {
+		packageName = fragments[len(fragments)-2]
+	}
+	return tpls.T("api", "init").Execute(fObj, tpls.Params().With("package", packageName))
 }

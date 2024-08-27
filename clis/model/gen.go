@@ -8,11 +8,8 @@
 package model
 
 import (
-	"bytes"
 	"fmt"
 	"go/ast"
-	"go/parser"
-	"go/printer"
 	"go/token"
 	"os"
 	"path/filepath"
@@ -67,17 +64,13 @@ func gen_from_dir(dir string) error {
 }
 
 func gen_from_file(fname string) error {
-	fset := token.NewFileSet()
-	node, err := parser.ParseFile(fset, fname, nil, parser.AllErrors)
-	if err != nil {
-		return err
-	}
+	fast := logx.AssertFuncErr(tpls.NewAst(fname))
 	// 遍历AST，找到所有结构体
 	newStructs := make(map[string]*ast.StructType)
 
 	// 用于存储需要的import路径
 	imports := map[string]bool{}
-	for _, decl := range node.Decls {
+	for _, decl := range fast.Decls {
 		genDecl, ok := decl.(*ast.GenDecl)
 		if !ok || genDecl.Tok != token.TYPE {
 			continue
@@ -140,14 +133,11 @@ func gen_from_file(fname string) error {
 			}},
 		})
 	}
-	f := &bytes.Buffer{}
-	if err := printer.Fprint(f, fset, decls); err != nil {
-		return err
-	}
+	structsBody := logx.AssertFuncErr(tpls.Ast2Str(decls))
 
 	fObj := tpls.OpenAbsFile(filepath.Dir(fname), strings.ReplaceAll(filepath.Base(fname), ".go", "_gen.go"))
 	defer fObj.Close()
-	return tpls.T("models/gen").Execute(fObj, tpls.Params().With("structs", f.String()).With("imports", importsList).With("package", filepath.Base(filepath.Dir(fname))))
+	return tpls.T("models/gen").Execute(fObj, tpls.Params().With("body", structsBody).With("imports", importsList).With("package", filepath.Base(filepath.Dir(fname))))
 }
 
 // checkAndAddImport 检查字段类型并根据需要添加相应的import路径

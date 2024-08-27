@@ -16,7 +16,7 @@ var (
 	newCmd  = cmds.Api.SubCommand("new", "create new api code in api dir")
 	nameObj = newCmd.String("n", "user", "target resource name")
 	genCmd  = cmds.Api.SubCommand("gen", "generate api code from model files in api dir")
-	fromObj = genCmd.String("f", "models", "model file or dir path, relative to root cmd Dirpath")
+	fromObj = genCmd.String("f", "", "target model file or dir path, relative to root cmd Dirmodel")
 )
 
 var (
@@ -24,6 +24,6 @@ var (
 )
 
 func init() {
-	newCmd.Command = new_model
-	genCmd.Command = gen_model
+	newCmd.Command = new_api
+	genCmd.Command = gen_api
 }

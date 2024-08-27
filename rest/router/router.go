@@ -26,7 +26,7 @@ type fc0 = func(*X) error
 type fc1 = func(http.ResponseWriter, *http.Request) error
 type fc2 = func(http.ResponseWriter, *http.Request)
 
-type ErrHandle = func(http.ResponseWriter, *http.Request, error, int)
+type ErrHandle = func(x *X, err error, code int)
 
 var (
 	ErrNotFound = errors.New("not found")
@@ -39,10 +39,10 @@ var allowedMethods = []string{
 
 func NewRouter() Router {
 	r := &route{}
-	r.errHandler = func(w http.ResponseWriter, r *http.Request, err error, code int) {
-		w.WriteHeader(code)
+	r.errHandler = func(x *X, err error, code int) {
+		x.WriteHeader(code)
 		if err != nil {
-			w.Write([]byte(err.Error()))
+			x.Write([]byte(err.Error()))
 		}
 	}
 	return r
@@ -177,20 +177,19 @@ func (r *route) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 		x.fcs = subR.handlers[req.Method]
 		err := x.Next()
 		if err != nil {
-			subR.fire_err(w, req, err, 500)
+			subR.fire_err(x, err, 500)
 		}
 	} else {
-		subR.fire_err(w, req, ErrNotFound, 404)
+		r.fire_err(x, ErrNotFound, 404)
 	}
 	logx.WithNoCaller.Debug().Int("ms", int(time.Since(start).Milliseconds())).Str("method", req.Method).Msg(req.RequestURI)
 }
 
-func (r *route) fire_err(w http.ResponseWriter, req *http.Request, err error, code int) {
-	logx.Info().Msgf("%s: %v", r, err)
+func (r *route) fire_err(x *X, err error, code int) {
 	if r.errHandler != nil {
-		r.errHandler(w, req, err, code)
+		r.errHandler(x, err, code)
 	} else {
-		r.parent.fire_err(w, req, err, code)
+		r.parent.fire_err(x, err, code)
 	}
 }
 

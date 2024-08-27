@@ -19,8 +19,10 @@ var (
 )
 
 var (
-	nameObj   = newCmd.String("n", "user", "target model name")
-	nameRegex = regexp.MustCompile(`^[a-zA-Z][a-zA-Z0-9\._]*$`)
+	nameObj = newCmd.String("n", "user", "target model name")
+	// dir0/dir1/dir2.structname
+	// structname default to dir2
+	nameRegex = regexp.MustCompile(`^[a-zA-Z][a-zA-Z0-9/\._]*$`)
 )
 
 var methodReg = regexp.MustCompile(`methods:"([^"]+)"`)

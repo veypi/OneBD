@@ -10,12 +10,11 @@ import (
 )
 
 func use{{.Obj}}(r rest.Router) {
-	r = r.SubRouter("{{.obj}}")
-	r.Get("/:id", {{.obj}}Get)
+	r.Get("/:{{.s_obj}}_id", {{.obj}}Get)
 	r.Get("/", {{.obj}}List)
 	r.Post("/", {{.obj}}Add)
-	r.Patch("/:id", {{.obj}}Update)
-	r.Delete("/:id", {{.obj}}Delete)
+	r.Patch("/:{{.s_obj}}_id", {{.obj}}Update)
+	r.Delete("/:{{.s_obj}}_id", {{.obj}}Delete)
 }
 
 func {{.obj}}Get(x *rest.X) error {
