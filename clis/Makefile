@@ -8,14 +8,18 @@
 
 cache=~/test/app/
 
-cmd=go run clis.go -l info --dir ${cache} -y --repo testapp
+cmd=go run clis.go -l debug --dir ${cache} -y --repo testapp
 
 test:clean
-	@${cmd} model new -n app
-	@${cmd} model gen
 	@${cmd} app  new
-	@${cmd} api new -n user.app
-	@${cmd} api new -n user.auth
+	@${cmd} model new -n app
+	@${cmd} model new -n app/user
+	@${cmd} model new -n app/user.auth
+	@${cmd} model new -n user
+	@${cmd} model new -n user.cache
+	@${cmd} model gen
+	@${cmd} api new -n single
+	@${cmd} api gen
 
 clean:
 	@rm -rf ${cache}/*

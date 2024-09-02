@@ -7,12 +7,6 @@
 
 package OneBD
 
-import "github.com/veypi/OneBD/rest/router"
-
 const (
 	Version = "v0.5.0"
 )
-
-type X = router.X
-
-var NewRouter = router.NewRouter

@@ -40,6 +40,7 @@ func gen_model() error {
 	} else {
 		err = gen_from_file(root)
 	}
+	tpls.GoFmt(".")
 	return err
 }
 
@@ -53,7 +54,7 @@ func gen_from_dir(dir string) error {
 		fullPath := filepath.Join(dir, entry.Name())
 		if entry.IsDir() {
 			err = gen_from_dir(fullPath)
-		} else if !strings.HasSuffix(fullPath, "_gen.go") {
+		} else {
 			err = gen_from_file(fullPath)
 		}
 		if err != nil {
@@ -64,12 +65,16 @@ func gen_from_dir(dir string) error {
 }
 
 func gen_from_file(fname string) error {
+	if strings.HasSuffix(fname, ".gen.go") || strings.HasSuffix(fname, "init.go") {
+		return nil
+	}
 	fast := logx.AssertFuncErr(tpls.NewAst(fname))
 	// 遍历AST，找到所有结构体
-	newStructs := make(map[string]*ast.StructType)
+	newStructs := make(map[string][]*ast.Field)
 
 	// 用于存储需要的import路径
 	imports := map[string]bool{}
+	initStructs := getStructs(utils.PathJoin(*cmds.DirRoot, *cmds.DirModel, "init.go"))
 	for _, decl := range fast.Decls {
 		genDecl, ok := decl.(*ast.GenDecl)
 		if !ok || genDecl.Tok != token.TYPE {
@@ -89,33 +94,24 @@ func gen_from_file(fname string) error {
 
 			// 遍历结构体字段，提取带tag的字段
 			for _, field := range structType.Fields.List {
-				res := methodReg.FindStringSubmatch(field.Tag.Value)
-				if len(res) == 0 {
-					continue
-				}
-				for _, tag := range res[1:] {
-					field.Tag.Value = strings.ReplaceAll(field.Tag.Value, res[0], "")
-					methods := strings.Split(strings.ReplaceAll(tag, " ", ""), ",")
-					for _, m := range methods {
-						method := utils.ToTitle(m)
-						if !utils.InList(method, allowedMethods) {
-							logx.Warn().Msgf("method %s not allowed", method)
-							continue
+				if len(field.Names) == 0 {
+					styp := initStructs[getStructName(field.Type)]
+					if styp == nil {
+						logx.Debug().Msgf("not found struct: %v", field.Type)
+					} else {
+						for _, subF := range styp.Fields.List {
+							parseTag(subF, typeSpec.Name.Name, newStructs, imports)
 						}
-						if newStructs[typeSpec.Name.Name+method] == nil {
-							newStructs[typeSpec.Name.Name+method] = &ast.StructType{Fields: &ast.FieldList{}}
-						}
-						newStructs[typeSpec.Name.Name+method].Fields.List = append(newStructs[typeSpec.Name.Name+method].Fields.List, field)
-						// 检查字段类型并添加相应的import路径
-						checkAndAddImport(field.Type, imports)
 					}
 				}
+				parseTag(field, typeSpec.Name.Name, newStructs, imports)
 			}
 		}
 	}
-	importsList := []string{}
+	fAbsPath := filepath.Join(filepath.Dir(fname), strings.ReplaceAll(filepath.Base(fname), ".go", ".gen.go"))
+	fAst := logx.AssertFuncErr(tpls.NewFileOrEmptyAst(fAbsPath, filepath.Base(filepath.Dir(fname))))
 	for a := range imports {
-		importsList = append(importsList, a)
+		fAst.AddImport(a)
 	}
 	structNames := make([]string, 0, len(newStructs))
 	for k := range newStructs {
@@ -123,21 +119,69 @@ func gen_from_file(fname string) error {
 	}
 	sort.Strings(structNames)
 
-	var decls []ast.Decl
 	for _, t := range structNames {
-		decls = append(decls, &ast.GenDecl{
-			Tok: token.TYPE,
-			Specs: []ast.Spec{&ast.TypeSpec{
-				Name: ast.NewIdent(t),
-				Type: newStructs[t],
-			}},
-		})
+		fAst.AddStructWithFields(t, newStructs[t]...)
 	}
-	structsBody := logx.AssertFuncErr(tpls.Ast2Str(decls))
+	return fAst.Dump(fAbsPath)
+}
 
-	fObj := tpls.OpenAbsFile(filepath.Dir(fname), strings.ReplaceAll(filepath.Base(fname), ".go", "_gen.go"))
-	defer fObj.Close()
-	return tpls.T("models/gen").Execute(fObj, tpls.Params().With("body", structsBody).With("imports", importsList).With("package", filepath.Base(filepath.Dir(fname))))
+func parseTag(field *ast.Field, Obj string, newStructs map[string][]*ast.Field, imports map[string]bool) {
+	if field.Tag == nil {
+		return
+	}
+	logx.Warn().Msgf("%s: %v %v", Obj, field.Names[0].Name, field.Tag.Value)
+	res := methodReg.FindStringSubmatch(field.Tag.Value)
+	if len(res) == 0 {
+		return
+	}
+	for _, tag := range res[1:] {
+		methods := strings.Split(strings.ReplaceAll(tag, " ", ""), ",")
+		for _, m := range methods {
+			method := utils.ToTitle(m)
+			if !utils.InList(method, allowedMethods) {
+				logx.Warn().Msgf("method %s not allowed", method)
+				continue
+			}
+			if newStructs[Obj+method] == nil {
+				newStructs[Obj+method] = make([]*ast.Field, 0, 4)
+			}
+			newStructs[Obj+method] = append(newStructs[Obj+method], &ast.Field{
+				Names: []*ast.Ident{{Name: field.Names[0].Name}},
+				Type:  field.Type,
+				Tag:   &ast.BasicLit{Value: strings.ReplaceAll(field.Tag.Value, res[0], "")},
+			})
+			// 检查字段类型并添加相应的import路径
+			checkAndAddImport(field.Type, imports)
+		}
+	}
+}
+
+func getStructName(expr ast.Expr) string {
+	sName := ""
+	switch t := expr.(type) {
+	case *ast.Ident:
+		sName = t.Name
+	case *ast.SelectorExpr:
+		sName = t.Sel.Name
+	}
+	return sName
+}
+
+func getStructs(fPath string) map[string]*ast.StructType {
+	res := make(map[string]*ast.StructType)
+	fAst, err := tpls.NewAst(fPath)
+	if err != nil {
+		return nil
+	}
+	fAst.Inspect(func(n ast.Node) bool {
+		if typeSpec, ok := n.(*ast.TypeSpec); ok {
+			if styp, ok := typeSpec.Type.(*ast.StructType); ok {
+				res[typeSpec.Name.Name] = styp
+			}
+		}
+		return true
+	})
+	return res
 }
 
 // checkAndAddImport 检查字段类型并根据需要添加相应的import路径

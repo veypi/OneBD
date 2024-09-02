@@ -5,7 +5,7 @@
 // Distributed under terms of the MIT license.
 //
 
-package router
+package rest
 
 import (
 	"net/http"

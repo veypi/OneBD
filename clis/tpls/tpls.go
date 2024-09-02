@@ -8,13 +8,8 @@
 package tpls
 
 import (
-	"bytes"
 	"embed"
 	"fmt"
-	"go/ast"
-	"go/parser"
-	"go/printer"
-	"go/token"
 	"os"
 	"strings"
 	"text/template"
@@ -108,83 +103,5 @@ func confirmYes(txt string) {
 	input = strings.ToLower(input)
 	if input != "y" {
 		os.Exit(0)
-	}
-}
-
-func Ast2Str(decls any) (string, error) {
-	f := &bytes.Buffer{}
-	err := printer.Fprint(f, token.NewFileSet(), decls)
-	return f.String(), err
-}
-
-func NewAst(fPath string) (*Ast, error) {
-	fset := token.NewFileSet()
-	node, err := parser.ParseFile(fset, fPath, nil, parser.ParseComments)
-	if err != nil {
-		return nil, err
-	}
-	return &Ast{node, fset}, nil
-}
-
-type Ast struct {
-	*ast.File
-	fset *token.FileSet
-}
-
-func (a *Ast) Inspect(fn func(ast.Node) bool) {
-	ast.Inspect(a.File, fn)
-}
-
-func (a *Ast) Dump(fPath string) error {
-	f, err := os.Create(fPath)
-	if err != nil {
-		return fmt.Errorf("Error creating file: %v", err)
-	}
-	defer f.Close()
-
-	if err := printer.Fprint(f, a.fset, a.File); err != nil {
-		return fmt.Errorf("Error writing to file: %v", err)
-	}
-	return nil
-}
-
-func (a *Ast) AddStructIfNotExist(name string, fields ...*ast.Field) error {
-	found := false
-	a.Inspect(func(n ast.Node) bool {
-		if typeSpec, ok := n.(*ast.TypeSpec); ok {
-			if _, ok := typeSpec.Type.(*ast.StructType); ok {
-				if typeSpec.Name.Name == name {
-					found = true
-					return false
-				}
-			}
-		}
-		return true
-	})
-	if !found {
-
-		newStruct := &ast.GenDecl{
-			Tok: token.TYPE,
-			Specs: []ast.Spec{
-				&ast.TypeSpec{
-					Name: ast.NewIdent(name),
-					Type: &ast.StructType{
-						Fields: &ast.FieldList{
-							List: fields,
-						},
-					},
-				},
-			},
-		}
-		a.Decls = append(a.Decls, newStruct)
-	}
-	return nil
-}
-
-func NewAstField(name, typ, tag string) *ast.Field {
-	return &ast.Field{
-		Names: []*ast.Ident{ast.NewIdent(name)},
-		Type:  ast.NewIdent(typ),
-		Tag:   &ast.BasicLit{Kind: token.STRING, Value: tag},
 	}
 }

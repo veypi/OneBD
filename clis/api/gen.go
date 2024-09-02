@@ -58,7 +58,7 @@ func gen_from_dir(dir string, fragments ...string) error {
 		fullPath := filepath.Join(absPath, ename)
 		if entry.IsDir() {
 			err = gen_from_dir(fullPath, append(fragments, ename)...)
-		} else if !strings.HasSuffix(fullPath, "_gen.go") {
+		} else {
 			err = gen_from_file(fullPath, append(fragments, ename[:len(ename)-3])...)
 		}
 		if err != nil {
@@ -69,6 +69,9 @@ func gen_from_dir(dir string, fragments ...string) error {
 }
 
 func gen_from_file(fname string, fragments ...string) error {
+	if strings.HasSuffix(fname, ".gen.go") || strings.HasSuffix(fname, "init.go") {
+		return nil
+	}
 	fset := token.NewFileSet()
 	node, err := parser.ParseFile(fset, fname, nil, parser.AllErrors)
 	if err != nil {
@@ -95,7 +98,7 @@ func gen_from_file(fname string, fragments ...string) error {
 
 		}
 	}
-	genFname := fname[:len(fname)-3] + "_gen.go"
+	genFname := fname[:len(fname)-3] + ".gen.go"
 	if utils.FileExists(genFname) {
 		fset := token.NewFileSet()
 		node, err := parser.ParseFile(fset, genFname, nil, parser.AllErrors)

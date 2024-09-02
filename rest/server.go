@@ -12,13 +12,9 @@ import (
 	"net"
 	"net/http"
 
-	"github.com/veypi/OneBD/rest/router"
 	"github.com/veypi/utils/logx"
 	"golang.org/x/net/netutil"
 )
-
-type X = router.X
-type Router = router.Router
 
 func New(c *RestConf) (*Application, error) {
 	if err := c.IsValid(); err != nil {
@@ -26,7 +22,7 @@ func New(c *RestConf) (*Application, error) {
 	}
 	app := &Application{
 		config: c,
-		router: router.NewRouter(),
+		router: NewRouter(),
 	}
 	app.server = &http.Server{
 		Addr:              c.Url(),
@@ -49,13 +45,13 @@ func New(c *RestConf) (*Application, error) {
 }
 
 type Application struct {
-	router   router.Router
+	router   Router
 	config   *RestConf
 	server   *http.Server
 	listener net.Listener
 }
 
-func (app *Application) Router() router.Router {
+func (app *Application) Router() Router {
 	return app.router
 }
 

@@ -28,7 +28,7 @@ func new_api() error {
 	fname := utils.CamelToSnake(name)
 	fragment[len(fragment)-1] = fname + ".go"
 
-	fObj := tpls.OpenFile(fragment...)
+	fObj := tpls.OpenFile(append([]string{*cmds.DirApi}, fragment...)...)
 	defer fObj.Close()
 	packageName := *cmds.DirApi
 	if len(fragment) > 1 {
@@ -98,13 +98,21 @@ func appendRouterInInit(isDir bool, fcName string, fragments ...string) error {
 
 					// 如果没有 `xxx.Use(r)`，则添加
 					if !hasXxxUse {
+						arg := "r"
+						if fcName != fAst.Name.Name {
+							if fAst.Name.Name != *cmds.DirApi {
+								arg = fmt.Sprintf(`r.SubRouter(":%s_id/%s")`, fAst.Name.Name, fcName)
+							} else {
+								arg = fmt.Sprintf(`r.SubRouter("%s")`, fcName)
+							}
+						}
 						newCall := &ast.ExprStmt{
 							X: &ast.CallExpr{
 								Fun: &ast.SelectorExpr{
 									X:   ast.NewIdent(fcName),
 									Sel: ast.NewIdent("Use"),
 								},
-								Args: []ast.Expr{ast.NewIdent("r")},
+								Args: []ast.Expr{ast.NewIdent(arg)},
 							},
 						}
 						funcDecl.Body.List = append(funcDecl.Body.List, newCall)
@@ -129,7 +137,11 @@ func appendRouterInInit(isDir bool, fcName string, fragments ...string) error {
 					if !hasUseRouter {
 						arg := "r"
 						if fcName != fAst.Name.Name {
-							arg = fmt.Sprintf(`r.SubRouter(":%s_id/%s")`, fAst.Name.Name, fcName)
+							if fAst.Name.Name != *cmds.DirApi {
+								arg = fmt.Sprintf(`r.SubRouter(":%s_id/%s")`, fAst.Name.Name, fcName)
+							} else {
+								arg = fmt.Sprintf(`r.SubRouter("%s")`, fcName)
+							}
 						}
 						newCall := &ast.ExprStmt{
 							X: &ast.CallExpr{

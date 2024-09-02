@@ -29,9 +29,14 @@ func build_app() error {
 	cfgF := tpls.OpenFile("cfg", "cfg.go")
 	defer cfgF.Close()
 	logx.AssertError(tpls.T("cfg/cfg").Execute(cfgF, tpls.Params()))
+
 	apiF := tpls.OpenFile(*cmds.DirApi, "init.go")
 	defer apiF.Close()
 	logx.AssertError(tpls.T("api", "init").Execute(apiF, tpls.Params().With("package", *cmds.DirApi)))
+
+	modelF := tpls.OpenFile(*cmds.DirModel, "init.go")
+	defer modelF.Close()
+	logx.AssertError(tpls.T("models", "init").Execute(modelF, tpls.Params()))
 
 	logx.AssertError(tpls.GoFmt("."))
 	logx.AssertError(tpls.GoInit(*cmds.RepoName))

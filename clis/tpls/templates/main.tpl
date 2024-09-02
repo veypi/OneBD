@@ -1,7 +1,7 @@
 //
 // main.go
 // Copyright (C) 2024 veypi <i@veypi.com>
-// 2024-08-07 15:25
+// {{.common.date}}
 // Distributed under terms of the MIT license.
 //
 
@@ -29,7 +29,8 @@ func runWeb() error {
 	if err != nil {
 		return err
 	}
-	{{.common.api}}.Use(app.Router())
+    apiRouter := app.Router().SubRouter("api")
+	{{.common.api}}.Use(apiRouter)
 	app.Router().Print()
 	return app.Run()
 }

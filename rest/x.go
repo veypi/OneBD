@@ -5,7 +5,7 @@
 // Distributed under terms of the MIT license.
 //
 
-package router
+package rest
 
 import (
 	"encoding/json"
@@ -26,7 +26,7 @@ func (x *X) SetParam(k string, v string) {
 	x.Params = append(x.Params, [2]string{k, v})
 }
 
-func (x *X) Next() error {
+func (x *X) Next(args ...any) error {
 	if x.fid >= len(x.fcs) {
 		return nil
 	}
@@ -40,11 +40,21 @@ func (x *X) Next() error {
 		err = fc(x.ResponseWriter, x.Request)
 	case fc2:
 		fc(x.ResponseWriter, x.Request)
+	case fc3:
+		var arg any
+		arg, err = fc(x)
+		args = append(args, arg)
+	case fc4:
+		err = fc(x, args...)
+	case fc5:
+		var arg any
+		arg, err = fc(x, args...)
+		args = append(args, arg)
 	}
 	if err != nil {
 		return err
 	}
-	return x.Next()
+	return x.Next(args...)
 }
 
 func (x *X) next(attach any) error {

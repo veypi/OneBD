@@ -8,6 +8,8 @@
 package model
 
 import (
+	"fmt"
+	"go/ast"
 	"strings"
 
 	"github.com/veypi/OneBD/clis/cmds"
@@ -24,6 +26,11 @@ func new_model() error {
 		panic("invalid name")
 	}
 	fragment := strings.Split(*nameObj, "/")
+	isRoot := true
+	isSubResource := ""
+	if len(fragment) > 1 {
+		isRoot = false
+	}
 	fragment = append([]string{*cmds.DirModel}, fragment...)
 	name := fragment[len(fragment)-1]
 	fname := utils.CamelToSnake(name)
@@ -33,21 +40,30 @@ func new_model() error {
 		// 修改生成对象名和文件名
 		fragment[len(fragment)-1] = tmps[0] + ".go"
 		fname = tmps[1]
+		isSubResource = tmps[0]
 	}
 	fAbsPath := utils.PathJoin(append([]string{*cmds.DirRoot}, fragment...)...)
-	var err error
-	if !utils.FileExists(fAbsPath) {
-		fObj := tpls.OpenAbsFile(fAbsPath)
-		defer fObj.Close()
-		err = tpls.T("models", "obj").Execute(fObj, tpls.Params().With("package", fragment[len(fragment)-2]).With("Obj", utils.SnakeToCamel(fname)))
+	var fAst *tpls.Ast
+	if utils.FileExists(fAbsPath) {
+		fAst = logx.AssertFuncErr(tpls.NewAst(fAbsPath))
 	} else {
-		fAst := logx.AssertFuncErr(tpls.NewAst(fAbsPath))
-		logx.AssertError(fAst.AddStructIfNotExist(utils.SnakeToCamel(fname),
-			tpls.NewAstField("CreatedAt", "time.Time", "`json:\"created_at\" methods:\"get,post,put,patch,list,delete\"`"),
-			tpls.NewAstField("UpdatedAt", "time.Time", "`json:\"updated_at\" methods:\"get,list\"`"),
-			tpls.NewAstField("DeletedAt", "gorm.DeletedAt", "`json:\"deleted_at\" gorm:\"index\"`"),
-		))
-		err = fAst.Dump(fAbsPath)
+		fAst = tpls.NewEmptyAst(fragment[len(fragment)-2])
+		if !isRoot {
+			fAst.AddImport(fmt.Sprintf("%s/%s", *cmds.RepoName, *cmds.DirModel))
+		}
 	}
-	return err
+	args := make([]*ast.Field, 0, 5)
+	if isRoot {
+		args = append(args, tpls.NewAstField("", "BaseModel", ""))
+	} else {
+		args = append(args, tpls.NewAstField("", fmt.Sprintf("%s.BaseModel", *cmds.DirModel), ""))
+	}
+	if isSubResource != "" {
+		args = append(args, tpls.NewAstField(fmt.Sprintf("%sID", utils.SnakeToCamel(isSubResource)), "string",
+			fmt.Sprintf("`json:\"%s_id\" gorm:\"primaryKey;type:varchar(32)\" methods:\"get,post,put,patch,list,delete\" parse:\"path\"`", isSubResource)))
+	}
+	logx.AssertError(fAst.AddStructWithFields(utils.SnakeToCamel(fname),
+		args...,
+	))
+	return fAst.Dump(fAbsPath)
 }

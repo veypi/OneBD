@@ -13,5 +13,4 @@ import (
 
 
 func Use(r rest.Router) {
-    r = r.SubRouter("{{.package}}")
 }
