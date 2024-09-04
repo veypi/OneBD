@@ -134,7 +134,10 @@ func gen_from_file(fname string, fragments ...string) error {
 			objName := utils.CamelToSnake(name)
 			fObj := tpls.OpenAbsFile(tPath)
 			defer fObj.Close()
-			err = tpls.T("api", "new").Execute(fObj, tpls.Params().With("package", packageName).
+			mimport := fmt.Sprintf(`"%s"`, strings.Join(append([]string{*cmds.RepoName, *cmds.DirModel}, fragments[:len(fragments)-1]...), "/"))
+			err = tpls.T("api", "new").Execute(fObj, tpls.Params().
+				With("mimport", mimport).
+				With("package", packageName).
 				With("s_obj", objName).
 				With("obj", utils.SnakeToPrivateCamel(objName)).
 				With("Obj", utils.SnakeToCamel(objName)))

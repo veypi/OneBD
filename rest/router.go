@@ -26,8 +26,8 @@ type fc0 = func(*X) error
 type fc1 = func(http.ResponseWriter, *http.Request) error
 type fc2 = func(http.ResponseWriter, *http.Request)
 type fc3 = func(*X) (any, error)
-type fc4 = func(*X, ...any) error
-type fc5 = func(*X, ...any) (any, error)
+type fc4 = func(*X, any) error
+type fc5 = func(*X, ...any) error
 
 type ErrHandle = func(x *X, err error, code int)
 
@@ -279,12 +279,7 @@ func (r *route) Set(prefix string, method string, handlers ...any) Router {
 	}
 	for _, fc := range handlers {
 		switch fc := fc.(type) {
-		case fc0:
-		case fc1:
-		case fc2:
-		case fc3:
-		case fc4:
-		case fc5:
+		case fc0, fc1, fc2, fc3, fc4, fc5:
 		default:
 			logx.Fatal().Msgf("handler type not support: %T", fc)
 		}
@@ -315,7 +310,7 @@ func (r *route) Delete(url string, handlers ...any) Router {
 func (r *route) Use(middleware ...any) {
 	for _, m := range middleware {
 		switch m := m.(type) {
-		case fc0, fc1, fc2:
+		case fc0, fc1, fc2, fc3, fc4, fc5:
 			r.use(m)
 		default:
 			panic(fmt.Sprintf("not support middleware %T", m))

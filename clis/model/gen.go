@@ -73,7 +73,10 @@ func gen_from_file(fname string) error {
 	newStructs := make(map[string][]*ast.Field)
 
 	// 用于存储需要的import路径
-	imports := map[string]bool{}
+	imports := map[string]bool{
+		"encoding/json":               true,
+		"github.com/veypi/OneBD/rest": true,
+	}
 	initStructs := getStructs(utils.PathJoin(*cmds.DirRoot, *cmds.DirModel, "init.go"))
 	for _, decl := range fast.Decls {
 		genDecl, ok := decl.(*ast.GenDecl)
@@ -121,6 +124,11 @@ func gen_from_file(fname string) error {
 
 	for _, t := range structNames {
 		fAst.AddStructWithFields(t, newStructs[t]...)
+		parseFc := createParseBody(t, newStructs[t])
+		if parseFc != nil {
+			fAst.AddOrReplaceStructMethods(t, "Parse", parseFc)
+		}
+		// break
 	}
 	return fAst.Dump(fAbsPath)
 }
@@ -129,7 +137,6 @@ func parseTag(field *ast.Field, Obj string, newStructs map[string][]*ast.Field, 
 	if field.Tag == nil {
 		return
 	}
-	logx.Warn().Msgf("%s: %v %v", Obj, field.Names[0].Name, field.Tag.Value)
 	res := methodReg.FindStringSubmatch(field.Tag.Value)
 	if len(res) == 0 {
 		return

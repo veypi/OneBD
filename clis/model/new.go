@@ -18,6 +18,10 @@ import (
 	"github.com/veypi/utils/logx"
 )
 
+var (
+	embeded = newCmd.String("e", "BaseModel", "embeded struct field, should be defined in models/init.go")
+)
+
 func new_model() error {
 	if !nameRegex.MatchString(*nameObj) {
 		panic("invalid name")
@@ -54,14 +58,19 @@ func new_model() error {
 	}
 	args := make([]*ast.Field, 0, 5)
 	if isRoot {
-		args = append(args, tpls.NewAstField("", "BaseModel", ""))
+		if *embeded != "" {
+			args = append(args, tpls.NewAstField("", *embeded, ""))
+		}
 	} else {
-		args = append(args, tpls.NewAstField("", fmt.Sprintf("%s.BaseModel", *cmds.DirModel), ""))
+		if *embeded != "" {
+			args = append(args, tpls.NewAstField("", fmt.Sprintf("%s.%s", *cmds.DirModel, *embeded), ""))
+		}
 	}
 	if isSubResource != "" {
 		args = append(args, tpls.NewAstField(fmt.Sprintf("%sID", utils.SnakeToCamel(isSubResource)), "string",
 			fmt.Sprintf("`json:\"%s_id\" gorm:\"primaryKey;type:varchar(32)\" methods:\"get,post,put,patch,list,delete\" parse:\"path\"`", isSubResource)))
 	}
+	args = append(args, tpls.NewAstField("Name", "string", "`json:\"name\" gorm:\"type:varchar(64)\" methods:\"post,put,patch,list\" parse:\"json\"`"))
 	logx.AssertError(fAst.AddStructWithFields(utils.SnakeToCamel(fname),
 		args...,
 	))

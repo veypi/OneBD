@@ -36,7 +36,7 @@ func run(acts ...string) (string, error) {
 	if len(acts) == 0 {
 		return "", nil
 	}
-	logx.Debug().Msgf("run %s", strings.Join(acts, " "))
+	logx.Trace().Msgf("run %s", strings.Join(acts, " "))
 	cmd := exec.Command(acts[0], acts[1:]...)
 	cmd.Dir = *cmds.DirRoot
 	out, err := cmd.CombinedOutput()

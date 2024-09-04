@@ -26,6 +26,8 @@ var (
 )
 
 var methodReg = regexp.MustCompile(`methods:"([^"]+)"`)
+var parseReg = regexp.MustCompile(`parse:"(path|query|header)(@\w+)?"`)
+var objReg = regexp.MustCompile(`(\w+)?(Get|List|Post|Put|Patch|Delete)$`)
 var allowedMethods = []string{
 	"Get", "List", "Post", "Put",
 	"Patch", "Delete"}

@@ -45,37 +45,18 @@ func (x *X) Next(args ...any) error {
 		arg, err = fc(x)
 		args = append(args, arg)
 	case fc4:
-		err = fc(x, args...)
+		if len(args) == 0 {
+			err = fc(x, nil)
+		} else {
+			err = fc(x, args[0])
+		}
 	case fc5:
-		var arg any
-		arg, err = fc(x, args...)
-		args = append(args, arg)
+		err = fc(x, args...)
 	}
 	if err != nil {
 		return err
 	}
 	return x.Next(args...)
-}
-
-func (x *X) next(attach any) error {
-	if x.fid >= len(x.fcs) {
-		return nil
-	}
-	fc := x.fcs[x.fid]
-	x.fid++
-	var err error
-	switch fc := fc.(type) {
-	case fc0:
-		err = fc(x)
-	case fc1:
-		err = fc(x.ResponseWriter, x.Request)
-	case fc2:
-		fc(x.ResponseWriter, x.Request)
-	}
-	if err != nil {
-		return err
-	}
-	return x.Next()
 }
 
 func (x *X) JSON(data any) error {

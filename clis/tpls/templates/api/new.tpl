@@ -7,6 +7,7 @@ package {{.package}}
 
 import (
     "github.com/veypi/OneBD/rest"
+    {{if .mimport}}M {{.mimport}}{{end}}
 )
 
 func use{{.Obj}}(r rest.Router) {
@@ -17,6 +18,31 @@ func use{{.Obj}}(r rest.Router) {
 	r.Delete("/:{{.s_obj}}_id", {{.obj}}Delete)
 }
 
+{{if .mimport}}
+func {{.obj}}Get(x *rest.X) (any, error) {
+    data := M.{{.Obj}}{}
+	return data, nil
+}
+
+func {{.obj}}List(x *rest.X) (any, error) {
+    data := []M.{{.Obj}}{}
+	return data, nil
+}
+
+func {{.obj}}Add(x *rest.X) (any, error) {
+    data := M.{{.Obj}}{}
+	return data, nil
+}
+
+func {{.obj}}Update(x *rest.X) (any, error) {
+    data := M.{{.Obj}}{}
+	return data, nil
+}
+
+func {{.obj}}Delete(x *rest.X) error {
+	return nil
+}
+{{else}}
 func {{.obj}}Get(x *rest.X) error {
 	return nil
 }
@@ -36,3 +62,5 @@ func {{.obj}}Update(x *rest.X) error {
 func {{.obj}}Delete(x *rest.X) error {
 	return nil
 }
+
+{{end}}

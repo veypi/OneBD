@@ -14,6 +14,7 @@ import (
 	"go/parser"
 	"go/printer"
 	"go/token"
+	"strings"
 
 	"github.com/veypi/utils"
 )
@@ -79,6 +80,44 @@ func (a *Ast) Dump(fPath string) error {
 	return nil
 }
 
+// AddOrReplaceStructMethods add or replace struct methods
+func (a *Ast) AddOrReplaceStructMethods(name string, fcName string, fc *ast.FuncDecl) {
+	sIndex := -1
+	for i, decl := range a.Decls {
+		if genDecl, ok := decl.(*ast.GenDecl); ok {
+			for _, spec := range genDecl.Specs {
+				typeSpec, ok := spec.(*ast.TypeSpec)
+				if !ok {
+					continue
+				}
+				if typeSpec.Name.Name == name {
+					if _, ok := typeSpec.Type.(*ast.StructType); ok {
+						sIndex = i + 1
+					}
+				}
+			}
+		}
+		if funcDecl, ok := decl.(*ast.FuncDecl); ok {
+			if funcDecl.Recv != nil && len(funcDecl.Recv.List) > 0 {
+				if recvT, ok := funcDecl.Recv.List[0].Type.(*ast.StarExpr).X.(*ast.Ident); ok {
+					if recvT.Name == name && funcDecl.Name.Name == fcName {
+						// found and replace method
+						funcDecl.Body = fc.Body
+						funcDecl.Type = fc.Type
+						return
+					}
+				}
+			}
+		}
+	}
+	if sIndex == -1 {
+		sIndex = len(a.Decls)
+	}
+	newDecls := append(a.Decls[:sIndex], append([]ast.Decl{fc}, a.Decls[sIndex:]...)...)
+	a.Decls = newDecls
+	return
+}
+
 func (a *Ast) AddStructWithFields(name string, fields ...*ast.Field) error {
 	found := false
 	a.Inspect(func(n ast.Node) bool {
@@ -92,6 +131,18 @@ func (a *Ast) AddStructWithFields(name string, fields ...*ast.Field) error {
 								tf.Type = f.Type
 								tf.Tag = f.Tag
 								field_found = true
+							}
+							if len(tf.Names) == 0 && len(f.Names) == 0 {
+								ffName := f.Type.(*ast.Ident).Name
+								if strings.Contains(ffName, ".") {
+									ffName = strings.Split(ffName, ".")[1]
+								}
+								if ttf, ok := tf.Type.(*ast.Ident); ok && ffName == ttf.Name {
+									field_found = true
+								}
+								if ttf, ok := tf.Type.(*ast.SelectorExpr); ok && ffName == ttf.Sel.Name {
+									field_found = true
+								}
 							}
 						}
 						if !field_found {

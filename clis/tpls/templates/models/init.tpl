@@ -12,8 +12,8 @@ import (
 )
 
 type BaseModel struct {
-    ID        string         `json:"id" gorm:"primaryKey;type:varchar(32)" methods:"get,post,put,patch,list,delete" parse:"path"`
+    ID        string         `json:"id" gorm:"primaryKey;type:varchar(32)" methods:"get,put,patch,list,delete" parse:"path"`
     CreatedAt time.Time      `json:"created_at" methods:"get,list" parse:"query"`
 	UpdatedAt time.Time      `json:"updated_at" methods:"get,list" parse:"query"`
-	DeletedAt gorm.DeletedAt `gorm:"index" json:"deleted_at"`
+	DeletedAt gorm.DeletedAt `gorm:"index" json:"-"`
 }
