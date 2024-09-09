@@ -34,6 +34,7 @@ func gen_model() error {
 	if !utils.FileExists(root) {
 		return fmt.Errorf("file or dir not exists: %v", root)
 	}
+	logv.Debug().Msgf("gen model from %v", root)
 	var err error
 	if utils.PathIsDir(root) {
 		err = gen_from_dir(root)
@@ -77,7 +78,23 @@ func gen_from_file(fname string) error {
 		"encoding/json":               true,
 		"github.com/veypi/OneBD/rest": true,
 	}
-	initStructs := getStructs(utils.PathJoin(*cmds.DirRoot, *cmds.DirModel, "init.go"))
+	initPath := utils.PathJoin(*cmds.DirRoot, *cmds.DirModel, "init.go")
+	initAst, err := tpls.NewAst(initPath)
+	if err != nil {
+		return err
+	}
+	initStructs := initAst.GetAllStructs()
+	// repo := utils.PathJoin(*cmds.RepoName, filepath.Dir(strings.ReplaceAll(fname, *cmds.DirRoot, "")))
+	migratePath := filepath.Join(filepath.Dir(fname), "init.go")
+	var migrateAst *tpls.Ast
+	if utils.FileExists(migratePath) {
+		migrateAst, err = tpls.NewAst(migratePath)
+		if err != nil {
+			return err
+		}
+	} else {
+		migrateAst = tpls.NewEmptyAst(fast.Name.Name)
+	}
 	for _, decl := range fast.Decls {
 		genDecl, ok := decl.(*ast.GenDecl)
 		if !ok || genDecl.Tok != token.TYPE {
@@ -93,6 +110,10 @@ func gen_from_file(fname string) error {
 			structType, ok := typeSpec.Type.(*ast.StructType)
 			if !ok {
 				continue
+			}
+			err = addMigrator(typeSpec.Name.Name, migrateAst)
+			if err != nil {
+				return err
 			}
 
 			// 遍历结构体字段，提取带tag的字段
@@ -110,6 +131,10 @@ func gen_from_file(fname string) error {
 				parseTag(field, typeSpec.Name.Name, newStructs, imports)
 			}
 		}
+	}
+	err = migrateAst.Dump(migratePath)
+	if err != nil {
+		return err
 	}
 	fAbsPath := filepath.Join(filepath.Dir(fname), strings.ReplaceAll(filepath.Base(fname), ".go", ".gen.go"))
 	fAst := logv.AssertFuncErr(tpls.NewFileOrEmptyAst(fAbsPath, filepath.Base(filepath.Dir(fname))))
@@ -172,23 +197,6 @@ func getStructName(expr ast.Expr) string {
 		sName = t.Sel.Name
 	}
 	return sName
-}
-
-func getStructs(fPath string) map[string]*ast.StructType {
-	res := make(map[string]*ast.StructType)
-	fAst, err := tpls.NewAst(fPath)
-	if err != nil {
-		return nil
-	}
-	fAst.Inspect(func(n ast.Node) bool {
-		if typeSpec, ok := n.(*ast.TypeSpec); ok {
-			if styp, ok := typeSpec.Type.(*ast.StructType); ok {
-				res[typeSpec.Name.Name] = styp
-			}
-		}
-		return true
-	})
-	return res
 }
 
 // checkAndAddImport 检查字段类型并根据需要添加相应的import路径

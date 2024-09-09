@@ -12,8 +12,10 @@ import (
 	"go/ast"
 	"go/parser"
 	"go/token"
+	"strings"
 
 	"github.com/veypi/OneBD/clis/cmds"
+	"github.com/veypi/OneBD/clis/tpls"
 	"github.com/veypi/utils"
 	"github.com/veypi/utils/logv"
 )
@@ -318,6 +320,43 @@ func createParseBody(name string, fields []*ast.Field, imports map[string]bool) 
 		},
 		Body: body,
 	}
+}
+
+func addMigrator(sName string, fAst *tpls.Ast) error {
+	fcMigrate := fAst.GetMethod("init")
+	if fcMigrate == nil {
+		fcMigrate = &ast.FuncDecl{
+			Name: ast.NewIdent("init"),
+			Body: &ast.BlockStmt{
+				List: []ast.Stmt{},
+			},
+			Type: &ast.FuncType{},
+		}
+		fAst.Decls = append(fAst.Decls, fcMigrate)
+	}
+	strFc, err := tpls.Ast2Str(fcMigrate)
+	if err != nil {
+		return err
+	}
+	if strings.Contains(strFc, fmt.Sprintf("&%s{}", sName)) {
+		return nil
+	}
+	logv.Debug().Msgf("add auto migrate object: %s %s", sName)
+	var item ast.Stmt = &ast.AssignStmt{
+		Lhs: []ast.Expr{ast.NewIdent("cfg.ObjList")},
+		Tok: token.ASSIGN,
+		Rhs: []ast.Expr{
+			&ast.CallExpr{
+				Fun: ast.NewIdent("append"),
+				Args: []ast.Expr{
+					ast.NewIdent("cfg.ObjList"),
+					ast.NewIdent(fmt.Sprintf("&%s{}", sName)),
+				},
+			}},
+	}
+	fcMigrate.Body.List = utils.InsertAt(fcMigrate.Body.List, -1, item)
+	fAst.AddImport(*cmds.RepoName + "/cfg")
+	return nil
 }
 
 func printAst(src string) {

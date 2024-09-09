@@ -13,12 +13,30 @@ import (
 	"gorm.io/gorm"
 )
 
-var DB *gorm.DB
+var db *gorm.DB
 
-func ConnectDB() error {
-	db, err := gorm.Open(mysql.New(mysql.Config{
-		DSN: Config.DSN,
-	}), &gorm.Config{})
-	DB = db
-	return err
+var cmdDB = CMD.SubCommand("db", "database operations")
+var cmdMigrate = cmdDB.SubCommand("migrate", "migrate database")
+var ObjList = make([]any, 0, 10)
+
+func init() {
+	cmdMigrate.Command = func() error {
+		return DB().AutoMigrate(ObjList...)
+	}
+	cmdDB.SubCommand("drop", "drop database").Command = func() error {
+		return DB().Migrator().DropTable(ObjList...)
+	}
+}
+
+func DB() *gorm.DB {
+	if db == nil {
+		var err error
+		db, err = gorm.Open(mysql.New(mysql.Config{
+			DSN: Config.DSN,
+		}), &gorm.Config{})
+		if err != nil {
+			panic(err)
+		}
+	}
+	return db
 }

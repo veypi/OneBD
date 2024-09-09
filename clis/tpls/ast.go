@@ -148,6 +148,19 @@ func (a *Ast) AddMethod(fc *ast.FuncDecl, reWrite bool) {
 	return
 }
 
+func (a *Ast) GetAllStructs() map[string]*ast.StructType {
+	res := make(map[string]*ast.StructType)
+	a.Inspect(func(n ast.Node) bool {
+		if typeSpec, ok := n.(*ast.TypeSpec); ok {
+			if styp, ok := typeSpec.Type.(*ast.StructType); ok {
+				res[typeSpec.Name.Name] = styp
+			}
+		}
+		return true
+	})
+	return res
+}
+
 func (a *Ast) GetMethod(fcName string) *ast.FuncDecl {
 	for _, decl := range a.Decls {
 		if funcDecl, ok := decl.(*ast.FuncDecl); ok {
