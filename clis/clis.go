@@ -12,22 +12,22 @@ import (
 	_ "github.com/veypi/OneBD/clis/app"
 	"github.com/veypi/OneBD/clis/cmds"
 	_ "github.com/veypi/OneBD/clis/model"
-	"github.com/veypi/utils/logx"
+	"github.com/veypi/utils/logv"
 )
 
 func main() {
-	// logx.DisableCaller()
+	// logv.DisableCaller()
 	cmds.Main.Before = func() error {
-		l, err := logx.ParseLevel(*cmds.LogLevel)
+		l, err := logv.ParseLevel(*cmds.LogLevel)
 		if err != nil {
 			return err
 		}
-		logx.SetLevel(l)
+		logv.SetLevel(l)
 		return nil
 	}
 	cmds.Parse()
 	err := cmds.Main.Run()
 	if err != nil {
-		logx.Warn().Msg(err.Error())
+		logv.Warn().Msg(err.Error())
 	}
 }

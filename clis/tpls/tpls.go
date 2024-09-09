@@ -17,7 +17,7 @@ import (
 
 	"github.com/veypi/OneBD/clis/cmds"
 	"github.com/veypi/utils"
-	"github.com/veypi/utils/logx"
+	"github.com/veypi/utils/logv"
 )
 
 var (
@@ -61,8 +61,8 @@ func OpenAbsFile(p ...string) *os.File {
 	if utils.FileExists(fpath) {
 		confirmYes(fmt.Sprintf("file %s exists, confirm to overwrite", fpath))
 	}
-	logx.WithNoCaller.Debug().Str("path", fpath).Msg("auto generate")
-	return logx.AssertFuncErr(utils.MkFile(fpath))
+	logv.WithNoCaller.Debug().Str("path", fpath).Msg("auto generate")
+	return logv.AssertFuncErr(utils.MkFile(fpath))
 }
 
 func T(p ...string) *template.Template {
@@ -76,16 +76,16 @@ func loadTpl(fragment ...string) *template.Template {
 	f := utils.PathJoin(fragment...) + ".tpl"
 	body, err := tplFs.ReadFile("templates/" + f)
 	if err != nil {
-		logx.Warn().Msgf("load origin template %s error: %v\n%s\n\n------", f, err, body)
+		logv.Warn().Msgf("load origin template %s error: %v\n%s\n\n------", f, err, body)
 	}
 	temp := utils.PathJoin(*tplDir, f)
 	if utils.FileExists(temp) {
-		logx.Info().Msgf("read template from %s", temp)
-		body = logx.AssertFuncErr(os.ReadFile(temp))
+		logv.Info().Msgf("read template from %s", temp)
+		body = logv.AssertFuncErr(os.ReadFile(temp))
 	} else if err != nil {
-		logx.Warn().Msgf("not found template %s", f)
+		logv.Warn().Msgf("not found template %s", f)
 	}
-	tmpl := logx.AssertFuncErr(template.New("").Parse(string(body)))
+	tmpl := logv.AssertFuncErr(template.New("").Parse(string(body)))
 	return tmpl
 }
 

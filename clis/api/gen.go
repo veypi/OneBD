@@ -19,7 +19,7 @@ import (
 	"github.com/veypi/OneBD/clis/cmds"
 	"github.com/veypi/OneBD/clis/tpls"
 	"github.com/veypi/utils"
-	"github.com/veypi/utils/logx"
+	"github.com/veypi/utils/logv"
 )
 
 func gen_api() error {
@@ -28,7 +28,7 @@ func gen_api() error {
 		return fmt.Errorf("file or dir not exists: %v", absPath)
 	}
 	var err error
-	logx.Info().Msgf("auto generate api files from model: %s", absPath)
+	logv.Info().Msgf("auto generate api files from model: %s", absPath)
 	fragments := make([]string, 0)
 	if *fromObj != "" {
 		fragments = strings.Split(*fromObj, "/")
@@ -69,7 +69,7 @@ func gen_from_dir(dir string, fragments ...string) error {
 }
 
 func gen_from_file(fname string, fragments ...string) error {
-	if strings.HasSuffix(fname, ".gen.go") || strings.HasSuffix(fname, "init.go") {
+	if !strings.HasSuffix(fname, ".go") || strings.HasSuffix(fname, ".gen.go") || strings.HasSuffix(fname, "init.go") {
 		return nil
 	}
 	fset := token.NewFileSet()
@@ -99,13 +99,13 @@ func gen_from_file(fname string, fragments ...string) error {
 		}
 	}
 	genFname := fname[:len(fname)-3] + ".gen.go"
+	objs_gen := make(map[string]map[string]*ast.StructType)
 	if utils.FileExists(genFname) {
 		fset := token.NewFileSet()
 		node, err := parser.ParseFile(fset, genFname, nil, parser.AllErrors)
 		if err != nil {
 			return err
 		}
-		objs_gen := make(map[string]*ast.StructType)
 		for _, decl := range node.Decls {
 			genDecl, ok := decl.(*ast.GenDecl)
 			if !ok || genDecl.Tok != token.TYPE {
@@ -122,34 +122,46 @@ func gen_from_file(fname string, fragments ...string) error {
 				if !ok {
 					continue
 				}
-				objs_gen[typeSpec.Name.Name] = st
-
+				if objs := objReg.FindStringSubmatch(typeSpec.Name.Name); len(objs) > 1 {
+					obj := objs[1]
+					method := objs[2]
+					if objs_gen[obj] == nil {
+						objs_gen[obj] = make(map[string]*ast.StructType)
+					}
+					objs_gen[obj][method] = st
+				}
 			}
 		}
 	}
 	for name := range objs {
-		tPath := utils.PathJoin(*cmds.DirRoot, *cmds.DirApi, strings.Join(fragments, "/"), utils.CamelToSnake(name)+".go")
-		if !utils.FileExists(tPath) {
-			packageName := filepath.Base(filepath.Dir(tPath))
-			objName := utils.CamelToSnake(name)
-			fObj := tpls.OpenAbsFile(tPath)
-			defer fObj.Close()
-			mimport := fmt.Sprintf(`"%s"`, strings.Join(append([]string{*cmds.RepoName, *cmds.DirModel}, fragments[:len(fragments)-1]...), "/"))
-			err = tpls.T("api", "new").Execute(fObj, tpls.Params().
-				With("mimport", mimport).
-				With("package", packageName).
-				With("s_obj", objName).
-				With("obj", utils.SnakeToPrivateCamel(objName)).
-				With("Obj", utils.SnakeToCamel(objName)))
-			logx.AssertError(err)
-			err = addRouter(false, append(fragments, objName))
-
-		} else {
+		snakeName := utils.CamelToSnake(name)
+		tPath := utils.PathJoin(*cmds.DirRoot, *cmds.DirApi, strings.Join(fragments, "/"), snakeName+".go")
+		packageName := filepath.Base(filepath.Dir(tPath))
+		fAst := tpls.NewEmptyAst(utils.CamelToSnake(packageName))
+		if utils.FileExists(tPath) {
+			fAst, err = tpls.NewAst(tPath)
+			if err != nil {
+				return err
+			}
 		}
+		fAst.AddMethod(create_use_func("use"+name), false)
+		fAst.AddImport("github.com/veypi/OneBD/rest")
+		mimport := strings.Join(append([]string{*cmds.RepoName, *cmds.DirModel}, fragments[:len(fragments)-1]...), "/")
+		fAst.AddImport(mimport, "M")
+		useFunc := fAst.GetMethod("use" + name)
+		for m := range objs_gen[name] {
+			logv.Warn().Msgf("create %s|%s", name, m)
+			fAst.AddMethod(create_api_func(name, m), false)
+			fAst.AppendStmtInMethod(create_use_stmt(name, m), useFunc)
+		}
+		err = fAst.Dump(tPath)
 		if err != nil {
 			return err
 		}
-		// packagesName := utils.PathJoin(*cmds.DirRoot, *cmds.DirApi, strings.Join(fragments, "/"))
+		err = addRouter(false, append(fragments, snakeName))
+		if err != nil {
+			return err
+		}
 	}
 
 	// fObj := tpls.OpenFile(*cmds.DirApi, )

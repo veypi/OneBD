@@ -12,7 +12,7 @@ import (
 	"net"
 	"net/http"
 
-	"github.com/veypi/utils/logx"
+	"github.com/veypi/utils/logv"
 	"golang.org/x/net/netutil"
 )
 
@@ -56,7 +56,7 @@ func (app *Application) Router() Router {
 }
 
 func (app *Application) Run() error {
-	logx.WithNoCaller.Info().Msg("listening " + app.config.Url())
+	logv.WithNoCaller.Info().Msg("listening " + app.config.Url())
 	l, e := app.netListener()
 	if e != nil {
 		return e

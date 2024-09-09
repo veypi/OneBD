@@ -8,12 +8,14 @@
 package model
 
 import (
+	"fmt"
 	"go/ast"
 	"go/parser"
 	"go/token"
 
+	"github.com/veypi/OneBD/clis/cmds"
 	"github.com/veypi/utils"
-	"github.com/veypi/utils/logx"
+	"github.com/veypi/utils/logv"
 )
 
 // 创建Parse方法函数体
@@ -34,7 +36,37 @@ func (m *ModelObj) Parse(x *rest.X) error {
 	return nil
 }
 */
-func createParseBody(name string, fields []*ast.Field) *ast.FuncDecl {
+func getArgsTransFunc(f *ast.Field, arg ast.Expr, imports map[string]bool) ast.Expr {
+	switch t := f.Type.(type) {
+	case *ast.Ident:
+		switch t.Name {
+		case "string":
+			return arg
+		case "int":
+			imports[fmt.Sprintf("%s/vtools", *cmds.RepoName)] = true
+			return &ast.CallExpr{
+				Fun:  ast.NewIdent("vtools.Str2Int"),
+				Args: []ast.Expr{arg},
+			}
+		}
+		return arg
+	case *ast.SelectorExpr:
+		if ident, ok := t.X.(*ast.Ident); ok {
+			if ident.Name == "time" && t.Sel.Name == "Time" {
+				imports[fmt.Sprintf("%s/vtools", *cmds.RepoName)] = true
+				return &ast.CallExpr{
+					Fun:  ast.NewIdent("vtools.Str2Time"),
+					Args: []ast.Expr{arg},
+				}
+			}
+		}
+	default:
+		logv.Warn().Msgf("getArgsTransFunc not support: %s %T", f.Names[0].Name, f.Type)
+	}
+	return arg
+}
+func createParseBody(name string, fields []*ast.Field, imports map[string]bool) *ast.FuncDecl {
+	imports["fmt"] = true
 	var paramstmts = make([]ast.Stmt, 0)
 	var formStmts = make([]ast.Stmt, 0)
 	hasQuery := false
@@ -43,7 +75,6 @@ func createParseBody(name string, fields []*ast.Field) *ast.FuncDecl {
 			continue
 		}
 		res := parseReg.FindStringSubmatch(f.Tag.Value)
-		logx.Warn().Msgf("parse tag: %s|%v|", f.Tag.Value, res)
 		// form and json depend on the request content-type
 		source := "form"
 		if len(res) > 1 {
@@ -51,22 +82,28 @@ func createParseBody(name string, fields []*ast.Field) *ast.FuncDecl {
 			source = res[1]
 		}
 		key := f.Names[0].Name
+		if key == "ID" {
+			if objTag := objReg.FindStringSubmatch(name); len(objTag) > 1 {
+				key = objTag[1] + "ID"
+			}
+		}
 		if len(res) > 2 && res[2] != "" {
 			key = res[2]
 		}
 		key = "\"" + utils.CamelToSnake(key) + "\""
-		logx.Info().Msgf("source: %s, key: %s", source, key)
 		if source == "form" {
 			formStmts = append(formStmts, &ast.AssignStmt{
 				Lhs: []ast.Expr{ast.NewIdent("m." + f.Names[0].Name)},
 				Tok: token.ASSIGN,
 				Rhs: []ast.Expr{
-					&ast.CallExpr{
-						Fun: ast.NewIdent("x.Request.Form.Get"),
-						Args: []ast.Expr{
-							ast.NewIdent(key),
-						},
-					},
+					getArgsTransFunc(
+						f,
+						&ast.CallExpr{
+							Fun: ast.NewIdent("x.Request.Form.Get"),
+							Args: []ast.Expr{
+								ast.NewIdent(key),
+							},
+						}, imports),
 				},
 			})
 		} else if source == "path" {
@@ -74,12 +111,13 @@ func createParseBody(name string, fields []*ast.Field) *ast.FuncDecl {
 				Lhs: []ast.Expr{ast.NewIdent("m." + f.Names[0].Name)},
 				Tok: token.ASSIGN,
 				Rhs: []ast.Expr{
-					&ast.CallExpr{
-						Fun: ast.NewIdent("x.Params.GetStr"),
-						Args: []ast.Expr{
-							ast.NewIdent(key),
-						},
-					},
+					getArgsTransFunc(f,
+						&ast.CallExpr{
+							Fun: ast.NewIdent("x.Params.GetStr"),
+							Args: []ast.Expr{
+								ast.NewIdent(key),
+							},
+						}, imports),
 				},
 			})
 		} else if source == "header" {
@@ -87,12 +125,13 @@ func createParseBody(name string, fields []*ast.Field) *ast.FuncDecl {
 				Lhs: []ast.Expr{ast.NewIdent("m." + f.Names[0].Name)},
 				Tok: token.ASSIGN,
 				Rhs: []ast.Expr{
-					&ast.CallExpr{
-						Fun: ast.NewIdent("x.Request.Header.Get"),
-						Args: []ast.Expr{
-							ast.NewIdent(key),
-						},
-					},
+					getArgsTransFunc(f,
+						&ast.CallExpr{
+							Fun: ast.NewIdent("x.Request.Header.Get"),
+							Args: []ast.Expr{
+								ast.NewIdent(key),
+							},
+						}, imports),
 				},
 			})
 		} else {
@@ -114,12 +153,13 @@ func createParseBody(name string, fields []*ast.Field) *ast.FuncDecl {
 				Lhs: []ast.Expr{ast.NewIdent("m." + f.Names[0].Name)},
 				Tok: token.ASSIGN,
 				Rhs: []ast.Expr{
-					&ast.CallExpr{
-						Fun: ast.NewIdent("queryMap.Get"),
-						Args: []ast.Expr{
-							ast.NewIdent(key),
-						},
-					},
+					getArgsTransFunc(f,
+						&ast.CallExpr{
+							Fun: ast.NewIdent("queryMap.Get"),
+							Args: []ast.Expr{
+								ast.NewIdent(key),
+							},
+						}, imports),
 				},
 			})
 
@@ -179,52 +219,55 @@ func createParseBody(name string, fields []*ast.Field) *ast.FuncDecl {
 					Body: &ast.BlockStmt{
 						List: []ast.Stmt{
 							&ast.ReturnStmt{
-								Results: []ast.Expr{ast.NewIdent("err")},
+								Results: []ast.Expr{ast.NewIdent(`fmt.Errorf("parse form error %v", err)`)},
 							},
 						},
 					},
 				},
 			}, formStmts...),
 		},
-		Else: &ast.BlockStmt{
-			List: []ast.Stmt{
-				&ast.AssignStmt{
-					Lhs: []ast.Expr{ast.NewIdent("err")},
-					Tok: token.DEFINE,
-					Rhs: []ast.Expr{
-						&ast.CallExpr{
-							Fun: &ast.SelectorExpr{
-								X: &ast.CallExpr{
-									Fun: &ast.SelectorExpr{
-										X:   ast.NewIdent("json"),
-										Sel: ast.NewIdent("NewDecoder"),
-									},
-									Args: []ast.Expr{
-										&ast.SelectorExpr{
-											X: &ast.SelectorExpr{
-												X:   ast.NewIdent("x"),
-												Sel: ast.NewIdent("Request"),
+		Else: &ast.IfStmt{
+			Cond: ast.NewIdent(`contentType == "application/json"`),
+			Body: &ast.BlockStmt{
+				List: []ast.Stmt{
+					&ast.AssignStmt{
+						Lhs: []ast.Expr{ast.NewIdent("err")},
+						Tok: token.DEFINE,
+						Rhs: []ast.Expr{
+							&ast.CallExpr{
+								Fun: &ast.SelectorExpr{
+									X: &ast.CallExpr{
+										Fun: &ast.SelectorExpr{
+											X:   ast.NewIdent("json"),
+											Sel: ast.NewIdent("NewDecoder"),
+										},
+										Args: []ast.Expr{
+											&ast.SelectorExpr{
+												X: &ast.SelectorExpr{
+													X:   ast.NewIdent("x"),
+													Sel: ast.NewIdent("Request"),
+												},
+												Sel: ast.NewIdent("Body"),
 											},
-											Sel: ast.NewIdent("Body"),
 										},
 									},
+									Sel: ast.NewIdent("Decode"),
 								},
-								Sel: ast.NewIdent("Decode"),
+								Args: []ast.Expr{ast.NewIdent("m")},
 							},
-							Args: []ast.Expr{ast.NewIdent("m")},
 						},
 					},
-				},
-				&ast.IfStmt{
-					Cond: &ast.BinaryExpr{
-						X:  ast.NewIdent("err"),
-						Op: token.NEQ,
-						Y:  ast.NewIdent("nil"),
-					},
-					Body: &ast.BlockStmt{
-						List: []ast.Stmt{
-							&ast.ReturnStmt{
-								Results: []ast.Expr{ast.NewIdent("err")},
+					&ast.IfStmt{
+						Cond: &ast.BinaryExpr{
+							X:  ast.NewIdent("err"),
+							Op: token.NEQ,
+							Y:  ast.NewIdent("nil"),
+						},
+						Body: &ast.BlockStmt{
+							List: []ast.Stmt{
+								&ast.ReturnStmt{
+									Results: []ast.Expr{ast.NewIdent(`fmt.Errorf("parse json error %v", err)`)},
+								},
 							},
 						},
 					},
@@ -234,6 +277,7 @@ func createParseBody(name string, fields []*ast.Field) *ast.FuncDecl {
 	}
 	body := &ast.BlockStmt{
 		List: append([]ast.Stmt{
+			// &ast.ExprStmt{X: ast.NewIdent("// Auto Generate")},
 			assignStmt,
 			ifStmt,
 		}, paramstmts...),

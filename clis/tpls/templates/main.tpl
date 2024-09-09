@@ -12,7 +12,7 @@ import (
 	"{{.common.repo}}/{{.common.api}}"
 
 	"github.com/veypi/OneBD/rest"
-	"github.com/veypi/utils/logx"
+	"github.com/veypi/utils/logv"
 )
 
 func main() {
@@ -20,7 +20,7 @@ func main() {
 	cfg.CMD.Parse()
 	err := cfg.CMD.Run()
 	if err != nil {
-		logx.Warn().Msg(err.Error())
+		logv.Warn().Msg(err.Error())
 	}
 }
 

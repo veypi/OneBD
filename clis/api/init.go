@@ -21,6 +21,7 @@ var (
 
 var (
 	nameRegex = regexp.MustCompile(`^[a-zA-Z][a-zA-Z0-9\._]*$`)
+	objReg    = regexp.MustCompile(`(\w+)?(Get|List|Post|Put|Patch|Delete)$`)
 )
 
 func init() {

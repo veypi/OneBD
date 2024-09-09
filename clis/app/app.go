@@ -10,7 +10,7 @@ package app
 import (
 	"github.com/veypi/OneBD/clis/cmds"
 	"github.com/veypi/OneBD/clis/tpls"
-	"github.com/veypi/utils/logx"
+	"github.com/veypi/utils/logv"
 )
 
 var (
@@ -24,22 +24,29 @@ func init() {
 func build_app() error {
 	mainF := tpls.OpenFile("main.go")
 	defer mainF.Close()
-	logx.AssertError(tpls.T("main").Execute(mainF, tpls.Params()))
+	logv.AssertError(tpls.T("main").Execute(mainF, tpls.Params()))
 
 	cfgF := tpls.OpenFile("cfg", "cfg.go")
 	defer cfgF.Close()
-	logx.AssertError(tpls.T("cfg/cfg").Execute(cfgF, tpls.Params()))
+	logv.AssertError(tpls.T("cfg/cfg").Execute(cfgF, tpls.Params()))
+
+	dbF := tpls.OpenFile("cfg", "db.go")
+	defer dbF.Close()
+	logv.AssertError(tpls.T("cfg", "db").Execute(dbF, tpls.Params()))
 
 	apiF := tpls.OpenFile(*cmds.DirApi, "init.go")
 	defer apiF.Close()
-	logx.AssertError(tpls.T("api", "init").Execute(apiF, tpls.Params().With("package", *cmds.DirApi)))
+	logv.AssertError(tpls.T("api", "init").Execute(apiF, tpls.Params().With("package", *cmds.DirApi)))
 
 	modelF := tpls.OpenFile(*cmds.DirModel, "init.go")
 	defer modelF.Close()
-	logx.AssertError(tpls.T("models", "init").Execute(modelF, tpls.Params()))
+	logv.AssertError(tpls.T("models", "init").Execute(modelF, tpls.Params()))
+	vtools := tpls.OpenFile("vtools", "tools.go")
+	defer vtools.Close()
+	logv.AssertError(tpls.T("vtools", "typ").Execute(vtools, tpls.Params()))
 
-	logx.AssertError(tpls.GoFmt("."))
-	logx.AssertError(tpls.GoInit(*cmds.RepoName))
-	logx.AssertError(tpls.GoModtidy())
+	logv.AssertError(tpls.GoFmt("."))
+	logv.AssertError(tpls.GoInit(*cmds.RepoName))
+	logv.AssertError(tpls.GoModtidy())
 	return nil
 }

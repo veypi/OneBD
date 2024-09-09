@@ -11,7 +11,7 @@ import (
 	"net/http"
 	"testing"
 
-	"github.com/veypi/utils/logx"
+	"github.com/veypi/utils/logv"
 )
 
 const paramPrefix = "paramPrefix"
@@ -40,35 +40,35 @@ func (f *fakeResponseWriter) WriteHeader(statusCode int) {
 func githubRouter() Router {
 	r := NewRouter()
 	r.Use(func(x *X) error {
-		logx.Info().Int("id", 1).Str("p", x.Request.URL.Path).Msg(x.Params[0][0])
+		logv.Info().Int("id", 1).Str("p", x.Request.URL.Path).Msg(x.Params[0][0])
 		err := x.Next()
-		logx.Info().Int("id", 10).Err(err).Str("p", x.Request.URL.Path).Msg(x.Params[0][1])
+		logv.Info().Int("id", 10).Err(err).Str("p", x.Request.URL.Path).Msg(x.Params[0][1])
 		return err
 	})
 	r.Use(func(x *X) error {
-		logx.Info().Int("id", 2).Str("p", x.Request.URL.Path).Msg(x.Params.GetStr("sha"))
+		logv.Info().Int("id", 2).Str("p", x.Request.URL.Path).Msg(x.Params.GetStr("sha"))
 		return nil
 	})
 	for _, api := range githubAPi {
 		for _, m := range api.methods {
 			r.Set(api.path, m, func(x *X) error {
-				logx.Info().Int("id", 0).Str("p", x.Request.URL.Path).Msg("0")
+				logv.Info().Int("id", 0).Str("p", x.Request.URL.Path).Msg("0")
 				x.Write([]byte(x.Request.URL.Path))
 				return nil
 			})
 		}
 	}
 	r.Use(func(x *X) error {
-		logx.Info().Int("id", 3).Str("p", x.Request.URL.Path).Msg("0")
+		logv.Info().Int("id", 3).Str("p", x.Request.URL.Path).Msg("0")
 		// return errors.New("123")
 		return nil
 	})
 	r.Use(func(x *X) error {
-		logx.Info().Int("id", 4).Str("p", x.Request.URL.Path).Msg("0")
+		logv.Info().Int("id", 4).Str("p", x.Request.URL.Path).Msg("0")
 		return nil
 	})
 	r.Use(func(x *X) error {
-		logx.Info().Int("id", 5).Str("p", x.Request.URL.Path).Msg(x.Params.GetStr("owner"))
+		logv.Info().Int("id", 5).Str("p", x.Request.URL.Path).Msg(x.Params.GetStr("owner"))
 		return nil
 	})
 	return r
@@ -77,7 +77,7 @@ func githubRouter() Router {
 var testR Router
 
 func init() {
-	logx.SetLevel(logx.WarnLevel)
+	logv.SetLevel(logv.WarnLevel)
 	testR = githubRouter()
 }
 

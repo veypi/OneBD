@@ -15,7 +15,7 @@ import (
 	"github.com/veypi/OneBD/clis/cmds"
 	"github.com/veypi/OneBD/clis/tpls"
 	"github.com/veypi/utils"
-	"github.com/veypi/utils/logx"
+	"github.com/veypi/utils/logv"
 )
 
 var (
@@ -49,7 +49,7 @@ func new_model() error {
 	fAbsPath := utils.PathJoin(append([]string{*cmds.DirRoot}, fragment...)...)
 	var fAst *tpls.Ast
 	if utils.FileExists(fAbsPath) {
-		fAst = logx.AssertFuncErr(tpls.NewAst(fAbsPath))
+		fAst = logv.AssertFuncErr(tpls.NewAst(fAbsPath))
 	} else {
 		fAst = tpls.NewEmptyAst(fragment[len(fragment)-2])
 		if !isRoot {
@@ -71,7 +71,11 @@ func new_model() error {
 			fmt.Sprintf("`json:\"%s_id\" gorm:\"primaryKey;type:varchar(32)\" methods:\"get,post,put,patch,list,delete\" parse:\"path\"`", isSubResource)))
 	}
 	args = append(args, tpls.NewAstField("Name", "string", "`json:\"name\" gorm:\"type:varchar(64)\" methods:\"post,put,patch,list\" parse:\"json\"`"))
-	logx.AssertError(fAst.AddStructWithFields(utils.SnakeToCamel(fname),
+	if *nameObj == "demo" {
+		args = append(args, tpls.NewAstField("QueryA", "string", "`json:\"query_a\" methods:\"get,post\" parse:\"query\"`"))
+		args = append(args, tpls.NewAstField("HeaderB", "string", "`json:\"header_b\" methods:\"get,post\" parse:\"header\"`"))
+	}
+	logv.AssertError(fAst.AddStructWithFields(utils.SnakeToCamel(fname),
 		args...,
 	))
 	return fAst.Dump(fAbsPath)

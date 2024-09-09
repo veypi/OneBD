@@ -80,8 +80,8 @@ func (a *Ast) Dump(fPath string) error {
 	return nil
 }
 
-// AddOrReplaceStructMethods add or replace struct methods
-func (a *Ast) AddOrReplaceStructMethods(name string, fcName string, fc *ast.FuncDecl) {
+// add or replace struct methods
+func (a *Ast) AddStructMethods(name string, fcName string, fc *ast.FuncDecl, reWrite bool) {
 	sIndex := -1
 	for i, decl := range a.Decls {
 		if genDecl, ok := decl.(*ast.GenDecl); ok {
@@ -102,8 +102,10 @@ func (a *Ast) AddOrReplaceStructMethods(name string, fcName string, fc *ast.Func
 				if recvT, ok := funcDecl.Recv.List[0].Type.(*ast.StarExpr).X.(*ast.Ident); ok {
 					if recvT.Name == name && funcDecl.Name.Name == fcName {
 						// found and replace method
-						funcDecl.Body = fc.Body
-						funcDecl.Type = fc.Type
+						if reWrite {
+							funcDecl.Body = fc.Body
+							funcDecl.Type = fc.Type
+						}
 						return
 					}
 				}
@@ -116,6 +118,45 @@ func (a *Ast) AddOrReplaceStructMethods(name string, fcName string, fc *ast.Func
 	newDecls := append(a.Decls[:sIndex], append([]ast.Decl{fc}, a.Decls[sIndex:]...)...)
 	a.Decls = newDecls
 	return
+}
+
+func (a *Ast) AppendStmtInMethod(t ast.Stmt, fc *ast.FuncDecl) {
+	fcStr, _ := Ast2Str(fc)
+	tStr, _ := Ast2Str(t)
+	if !strings.Contains(fcStr, tStr) {
+		fc.Body.List = append(fc.Body.List, t)
+	}
+	return
+}
+
+// add or replace methods
+func (a *Ast) AddMethod(fc *ast.FuncDecl, reWrite bool) {
+	for _, decl := range a.Decls {
+		if funcDecl, ok := decl.(*ast.FuncDecl); ok {
+			if funcDecl.Name.Name == fc.Name.Name {
+				// found and replace method
+				if reWrite {
+					funcDecl.Doc = fc.Doc
+					funcDecl.Body = fc.Body
+					funcDecl.Type = fc.Type
+				}
+				return
+			}
+		}
+	}
+	a.Decls = append(a.Decls, fc)
+	return
+}
+
+func (a *Ast) GetMethod(fcName string) *ast.FuncDecl {
+	for _, decl := range a.Decls {
+		if funcDecl, ok := decl.(*ast.FuncDecl); ok {
+			if funcDecl.Name.Name == fcName {
+				return funcDecl
+			}
+		}
+	}
+	return nil
 }
 
 func (a *Ast) AddStructWithFields(name string, fields ...*ast.Field) error {
@@ -202,22 +243,35 @@ func (a *Ast) AddStruct(name string, styp *ast.StructType) error {
 	return nil
 }
 
-func (a *Ast) AddImport(repo string) error {
+func (a *Ast) AddImport(repo string, tags ...string) error {
 	repo = fmt.Sprintf(`"%s"`, repo)
+	var tag *ast.Ident
+	if len(tags) > 0 {
+		tag = ast.NewIdent(tags[0])
+	}
+
 	importAdded := false
 	a.Inspect(func(n ast.Node) bool {
 		if genDecl, ok := n.(*ast.GenDecl); ok && genDecl.Tok == token.IMPORT {
 			for _, spec := range genDecl.Specs {
 				if importSpec, ok := spec.(*ast.ImportSpec); ok {
 					if importSpec.Path.Value == repo {
-						importAdded = true
-						break
+						if tag != nil && importSpec.Name != nil {
+							if tag.Name == importSpec.Name.Name {
+								importAdded = true
+								break
+							}
+						} else if tag == nil && importSpec.Name == nil {
+							importAdded = true
+							break
+						}
 					}
 				}
 			}
 			if !importAdded {
 				// 添加 import "xxx"
 				newImport := &ast.ImportSpec{
+					Name: tag,
 					Path: &ast.BasicLit{
 						Kind:  token.STRING,
 						Value: repo,
@@ -235,6 +289,7 @@ func (a *Ast) AddImport(repo string) error {
 			Tok: token.IMPORT,
 			Specs: []ast.Spec{
 				&ast.ImportSpec{
+					Name: tag,
 					Path: &ast.BasicLit{
 						Kind:  token.STRING,
 						Value: repo,
@@ -258,4 +313,8 @@ func NewAstField(name, typ, tag string) *ast.Field {
 		r.Tag = &ast.BasicLit{Kind: token.STRING, Value: tag}
 	}
 	return r
+}
+
+func stmtEqual(a, b ast.Stmt) bool {
+	return fmt.Sprintf("%v", a) == fmt.Sprintf("%v", b)
 }

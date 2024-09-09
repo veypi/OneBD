@@ -19,7 +19,7 @@ import (
 	"github.com/veypi/OneBD/clis/cmds"
 	"github.com/veypi/OneBD/clis/tpls"
 	"github.com/veypi/utils"
-	"github.com/veypi/utils/logx"
+	"github.com/veypi/utils/logv"
 )
 
 var (
@@ -68,7 +68,7 @@ func gen_from_file(fname string) error {
 	if strings.HasSuffix(fname, ".gen.go") || strings.HasSuffix(fname, "init.go") {
 		return nil
 	}
-	fast := logx.AssertFuncErr(tpls.NewAst(fname))
+	fast := logv.AssertFuncErr(tpls.NewAst(fname))
 	// 遍历AST，找到所有结构体
 	newStructs := make(map[string][]*ast.Field)
 
@@ -100,7 +100,7 @@ func gen_from_file(fname string) error {
 				if len(field.Names) == 0 {
 					styp := initStructs[getStructName(field.Type)]
 					if styp == nil {
-						logx.Debug().Msgf("not found struct: %v", field.Type)
+						logv.Debug().Msgf("not found struct: %v", field.Type)
 					} else {
 						for _, subF := range styp.Fields.List {
 							parseTag(subF, typeSpec.Name.Name, newStructs, imports)
@@ -112,10 +112,7 @@ func gen_from_file(fname string) error {
 		}
 	}
 	fAbsPath := filepath.Join(filepath.Dir(fname), strings.ReplaceAll(filepath.Base(fname), ".go", ".gen.go"))
-	fAst := logx.AssertFuncErr(tpls.NewFileOrEmptyAst(fAbsPath, filepath.Base(filepath.Dir(fname))))
-	for a := range imports {
-		fAst.AddImport(a)
-	}
+	fAst := logv.AssertFuncErr(tpls.NewFileOrEmptyAst(fAbsPath, filepath.Base(filepath.Dir(fname))))
 	structNames := make([]string, 0, len(newStructs))
 	for k := range newStructs {
 		structNames = append(structNames, k)
@@ -124,11 +121,14 @@ func gen_from_file(fname string) error {
 
 	for _, t := range structNames {
 		fAst.AddStructWithFields(t, newStructs[t]...)
-		parseFc := createParseBody(t, newStructs[t])
+		parseFc := createParseBody(t, newStructs[t], imports)
 		if parseFc != nil {
-			fAst.AddOrReplaceStructMethods(t, "Parse", parseFc)
+			fAst.AddStructMethods(t, "Parse", parseFc, true)
 		}
 		// break
+	}
+	for a := range imports {
+		fAst.AddImport(a)
 	}
 	return fAst.Dump(fAbsPath)
 }
@@ -146,7 +146,7 @@ func parseTag(field *ast.Field, Obj string, newStructs map[string][]*ast.Field, 
 		for _, m := range methods {
 			method := utils.ToTitle(m)
 			if !utils.InList(method, allowedMethods) {
-				logx.Warn().Msgf("method %s not allowed", method)
+				logv.Warn().Msgf("method %s not allowed", method)
 				continue
 			}
 			if newStructs[Obj+method] == nil {

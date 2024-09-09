@@ -16,7 +16,7 @@ import (
 	"github.com/veypi/OneBD/clis/cmds"
 	"github.com/veypi/OneBD/clis/tpls"
 	"github.com/veypi/utils"
-	"github.com/veypi/utils/logx"
+	"github.com/veypi/utils/logv"
 )
 
 func new_api() error {
@@ -40,13 +40,15 @@ func new_api() error {
 		With("obj", utils.SnakeToPrivateCamel(fname)).
 		With("Obj", utils.SnakeToCamel(fname)),
 	)
-	logx.AssertError(err)
+	logv.AssertError(err)
 	fragment[len(fragment)-1] = fname
-	logx.AssertError(addRouter(false, fragment))
+	logv.AssertError(addRouter(false, fragment))
 
 	return err
 }
 
+// addRouter(true, [api,app]) add api/app
+// addRouter(false, [api,app, user]) api/app/user.go
 func addRouter(isDir bool, fragments []string) error {
 	if len(fragments) <= 0 {
 		return nil
@@ -55,9 +57,9 @@ func addRouter(isDir bool, fragments []string) error {
 	fragments[len(fragments)-1] = "init.go"
 	initPath := utils.PathJoin(append([]string{*cmds.DirRoot, *cmds.DirApi}, fragments...)...)
 	if !utils.FileExists(initPath) {
-		logx.AssertError(newRouterInInit(fragments...))
+		logv.AssertError(newRouterInInit(fragments...))
 	}
-	logx.AssertError(appendRouterInInit(isDir, name, fragments...))
+	logv.AssertError(appendRouterInInit(isDir, name, fragments...))
 	return addRouter(true, fragments[:len(fragments)-1])
 }
 
@@ -69,7 +71,7 @@ func appendRouterInInit(isDir bool, fcName string, fragments ...string) error {
 	fAbsPath := utils.PathJoin(append([]string{*cmds.DirRoot, *cmds.DirApi}, fragments...)...)
 	packageName := `"` + utils.PathJoin(*cmds.RepoName, *cmds.DirApi, strings.Join(fragments[:len(fragments)-1], "/"), fcName) + `"`
 
-	fAst := logx.AssertFuncErr(tpls.NewAst(fAbsPath))
+	fAst := logv.AssertFuncErr(tpls.NewAst(fAbsPath))
 
 	// 标记是否找到并添加了 xxx.Use(r)
 	shouldAddUse := false

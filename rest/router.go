@@ -19,7 +19,7 @@ import (
 	"time"
 
 	"github.com/veypi/utils"
-	"github.com/veypi/utils/logx"
+	"github.com/veypi/utils/logv"
 )
 
 type fc0 = func(*X) error
@@ -185,7 +185,7 @@ func (r *route) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	} else {
 		r.fire_err(x, ErrNotFound, 404)
 	}
-	logx.WithNoCaller.Debug().Int("ms", int(time.Since(start).Milliseconds())).Str("method", req.Method).Msg(req.RequestURI)
+	logv.WithNoCaller.Debug().Int("ms", int(time.Since(start).Milliseconds())).Str("method", req.Method).Msg(req.RequestURI)
 }
 
 func (r *route) fire_err(x *X, err error, code int) {
@@ -218,7 +218,7 @@ func (r *route) get_subrouter(url string) *route {
 			}
 			startIdx = i + 1
 			if next.fragment == "" {
-				logx.Assert(false, "url path can not has //")
+				logv.Assert(false, "url path can not has //")
 			} else if next.fragment[0] == '*' {
 				if last.wildcard != nil {
 					return r.wildcard
@@ -251,9 +251,9 @@ func (r *route) get_subrouter(url string) *route {
 
 func (r *route) Set(prefix string, method string, handlers ...any) Router {
 	method = strings.ToUpper(method)
-	logx.Assert(prefix != "", "path must begin with '/'")
-	logx.Assert(utils.InList(method, allowedMethods), fmt.Sprintf("not support HTTP method: %v", method))
-	logx.Assert(len(handlers) > 0, "there must be at least one handler")
+	logv.Assert(prefix != "", "path must begin with '/'")
+	logv.Assert(utils.InList(method, allowedMethods), fmt.Sprintf("not support HTTP method: %v", method))
+	logv.Assert(len(handlers) > 0, "there must be at least one handler")
 
 	var tmp *route
 	if len(r.fragment) > 0 && r.fragment[0] == '*' {
@@ -264,7 +264,7 @@ func (r *route) Set(prefix string, method string, handlers ...any) Router {
 	if tmp.handlers == nil {
 		tmp.handlers = make(map[string][]any)
 	}
-	logx.Assert(tmp.handlers[method] == nil, "url defined duplicate")
+	logv.Assert(tmp.handlers[method] == nil, "url defined duplicate")
 	fcs := make([]any, 0, 10)
 	var tmp_route = r
 	for {
@@ -281,7 +281,7 @@ func (r *route) Set(prefix string, method string, handlers ...any) Router {
 		switch fc := fc.(type) {
 		case fc0, fc1, fc2, fc3, fc4, fc5:
 		default:
-			logx.Fatal().Msgf("handler type not support: %T", fc)
+			logv.Fatal().Msgf("handler type not support: %T", fc)
 		}
 	}
 	fcs = append(fcs, handlers...)
@@ -390,7 +390,7 @@ func (r *route) EmbedFile(prefix string, f []byte) {
 		w.Header().Set("Content-Type", mime.TypeByExtension(path.Ext(req.URL.Path)))
 		_, err := w.Write(f)
 		if err != nil {
-			logx.Warn().Msgf("write file failed: %s", err.Error())
+			logv.Warn().Msgf("write file failed: %s", err.Error())
 		}
 	})
 }
@@ -407,20 +407,20 @@ func (r *route) EmbedDir(prefix string, fs embed.FS, fsPrefix string) {
 		name := fsPrefix + x.Params.GetStr("path")
 		f, err := fs.Open(name)
 		if err != nil {
-			logx.Info().Msgf("serve file failed: %s", err.Error())
+			logv.Info().Msgf("serve file failed: %s", err.Error())
 			w.WriteHeader(http.StatusNotFound)
 			return
 		}
 		defer f.Close()
 		info, err := f.Stat()
 		if err != nil {
-			logx.Info().Msgf("serve file failed: %s", err.Error())
+			logv.Info().Msgf("serve file failed: %s", err.Error())
 			w.WriteHeader(http.StatusNotFound)
 			return
 		}
 		if info.IsDir() {
 			// TODO:: dir list
-			logx.Info().Msgf("serve file failed: %s", err.Error())
+			logv.Info().Msgf("serve file failed: %s", err.Error())
 			w.WriteHeader(http.StatusNotFound)
 			return
 		}
@@ -430,7 +430,7 @@ func (r *route) EmbedDir(prefix string, fs embed.FS, fsPrefix string) {
 }
 
 func (r *route) SubRouter(prefix string) Router {
-	logx.Assert(prefix != "" && prefix != "/", "subrouter path can not be '' or '/'")
+	logv.Assert(prefix != "" && prefix != "/", "subrouter path can not be '' or '/'")
 	return r.get_subrouter(prefix)
 }
 
