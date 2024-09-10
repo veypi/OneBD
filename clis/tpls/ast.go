@@ -135,7 +135,7 @@ func (a *Ast) AddMethod(fc *ast.FuncDecl, reWrite bool) {
 		if funcDecl, ok := decl.(*ast.FuncDecl); ok {
 			if funcDecl.Name.Name == fc.Name.Name {
 				// found and replace method
-				if reWrite {
+				if funcDecl.Body == nil || len(funcDecl.Body.List) == 0 || reWrite {
 					funcDecl.Doc = fc.Doc
 					funcDecl.Body = fc.Body
 					funcDecl.Type = fc.Type

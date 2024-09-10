@@ -12,6 +12,7 @@ import (
 	"{{.common.repo}}/{{.common.api}}"
 
 	"github.com/veypi/OneBD/rest"
+	"github.com/veypi/OneBD/rest/middlewares"
 	"github.com/veypi/utils/logv"
 )
 
@@ -31,12 +32,9 @@ func runWeb() error {
 	}
     apiRouter := app.Router().SubRouter("api")
 	{{.common.api}}.Use(apiRouter)
-	apiRouter.Use(func(x *rest.X, data any) error {
-		if data != nil {
-			return x.JSON(data)
-		}
-		return nil
-	})
+
+	apiRouter.Use(middlewares.JsonResponse)
+	apiRouter.SetErrFunc(middlewares.JsonErrorResponse)
 	app.Router().Print()
 	return app.Run()
 }

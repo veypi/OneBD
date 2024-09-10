@@ -17,6 +17,7 @@ Auto generate code for backend
 ### 模型字段
 
 parse: path, query, header, json/form
+parse:path@varOtherName
 json和form在一个模型中只能有一类,不用显性标注，根据request请求自动分析, json为默认解析方法,其余类型参数会再次基础上覆盖
 
 id 推荐使用uuid, 请求来源一般来自路径

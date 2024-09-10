@@ -43,7 +43,10 @@ func gen_api() error {
 		fragments[len(fragments)-1] = fname[:len(fname)-3]
 		err = gen_from_file(absPath, fragments...)
 	}
-	return err
+	if err != nil {
+		return err
+	}
+	return tpls.GoModtidy()
 }
 
 func gen_from_dir(dir string, fragments ...string) error {
@@ -148,10 +151,10 @@ func gen_from_file(fname string, fragments ...string) error {
 		fAst.AddImport("github.com/veypi/OneBD/rest")
 		mimport := strings.Join(append([]string{*cmds.RepoName, *cmds.DirModel}, fragments[:len(fragments)-1]...), "/")
 		fAst.AddImport(mimport, "M")
+		fAst.AddImport(*cmds.RepoName + "/cfg")
 		useFunc := fAst.GetMethod("use" + name)
 		for m := range objs_gen[name] {
-			logv.Warn().Msgf("create %s|%s", name, m)
-			fAst.AddMethod(create_api_func(name, m), false)
+			fAst.AddMethod(create_api_func(fAst, name, m, objs_gen[name][m].Fields.List), false)
 			fAst.AppendStmtInMethod(create_use_stmt(name, m), useFunc)
 		}
 		err = fAst.Dump(tPath)

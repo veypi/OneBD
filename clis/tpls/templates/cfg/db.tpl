@@ -11,6 +11,7 @@ package cfg
 import (
 	"gorm.io/driver/mysql"
 	"gorm.io/gorm"
+	"gorm.io/gorm/logger"
 )
 
 var db *gorm.DB
@@ -33,7 +34,9 @@ func DB() *gorm.DB {
 		var err error
 		db, err = gorm.Open(mysql.New(mysql.Config{
 			DSN: Config.DSN,
-		}), &gorm.Config{})
+		}), &gorm.Config{
+			Logger: logger.Default.LogMode(logger.Silent),
+        })
 		if err != nil {
 			panic(err)
 		}

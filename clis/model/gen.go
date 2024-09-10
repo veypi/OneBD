@@ -177,9 +177,10 @@ func parseTag(field *ast.Field, Obj string, newStructs map[string][]*ast.Field, 
 			if newStructs[Obj+method] == nil {
 				newStructs[Obj+method] = make([]*ast.Field, 0, 4)
 			}
+			typ := field.Type
 			newStructs[Obj+method] = append(newStructs[Obj+method], &ast.Field{
 				Names: []*ast.Ident{{Name: field.Names[0].Name}},
-				Type:  field.Type,
+				Type:  typ,
 				Tag:   &ast.BasicLit{Value: strings.ReplaceAll(field.Tag.Value, res[0], "")},
 			})
 			// 检查字段类型并添加相应的import路径

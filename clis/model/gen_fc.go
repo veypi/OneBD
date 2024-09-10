@@ -39,7 +39,11 @@ func (m *ModelObj) Parse(x *rest.X) error {
 }
 */
 func getArgsTransFunc(f *ast.Field, arg ast.Expr, imports map[string]bool) ast.Expr {
-	switch t := f.Type.(type) {
+	typ := f.Type
+	if sTyp, ok := typ.(*ast.StarExpr); ok {
+		typ = sTyp.X
+	}
+	switch t := typ.(type) {
 	case *ast.Ident:
 		switch t.Name {
 		case "string":
@@ -48,6 +52,12 @@ func getArgsTransFunc(f *ast.Field, arg ast.Expr, imports map[string]bool) ast.E
 			imports[fmt.Sprintf("%s/vtools", *cmds.RepoName)] = true
 			return &ast.CallExpr{
 				Fun:  ast.NewIdent("vtools.Str2Int"),
+				Args: []ast.Expr{arg},
+			}
+		case "uint":
+			imports[fmt.Sprintf("%s/vtools", *cmds.RepoName)] = true
+			return &ast.CallExpr{
+				Fun:  ast.NewIdent("vtools.Str2Uint"),
 				Args: []ast.Expr{arg},
 			}
 		}
@@ -341,7 +351,7 @@ func addMigrator(sName string, fAst *tpls.Ast) error {
 	if strings.Contains(strFc, fmt.Sprintf("&%s{}", sName)) {
 		return nil
 	}
-	logv.Debug().Msgf("add auto migrate object: %s %s", sName)
+	logv.Debug().Msgf("add auto migrate object: %s", sName)
 	var item ast.Stmt = &ast.AssignStmt{
 		Lhs: []ast.Expr{ast.NewIdent("cfg.ObjList")},
 		Tok: token.ASSIGN,
