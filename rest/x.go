@@ -19,7 +19,6 @@ import (
 	"sync"
 
 	"github.com/veypi/utils"
-	"github.com/veypi/utils/logv"
 )
 
 type X struct {
@@ -62,6 +61,10 @@ func (x *X) Parse(obj any) error {
 		// 获取字段的tag
 		method := field.Tag.Get("parse")
 		key := utils.CamelToSnake(field.Name)
+		if method == "header" {
+			// header参数默认Title形式
+			key = utils.ToTitle(field.Name)
+		}
 		if strings.Contains(method, "@") {
 			tmps := strings.Split(method, "@")
 			method = tmps[0]
@@ -76,7 +79,6 @@ func (x *X) Parse(obj any) error {
 		case "query":
 			if queryMap == nil {
 				queryMap = x.Request.URL.Query()
-				logv.WithNoCaller.Warn().Msgf("%v", queryMap)
 			}
 			if tmps, ok := queryMap[key]; ok {
 				fContentSet = true
@@ -99,7 +101,6 @@ func (x *X) Parse(obj any) error {
 		}
 		ft := field.Type
 		isPointer := false
-		logv.WithNoCaller.Info().Msgf("|%v|%v|%v|%v|", key, method, ft.Kind(), fContent)
 		if ft.Kind() == reflect.Ptr {
 			if !fContentSet {
 				// 指针类型没有参数则直接跳过
@@ -113,12 +114,12 @@ func (x *X) Parse(obj any) error {
 			// 非指针类型没有参数根据默认值设置，没有则返回缺少参数
 			defaultValue, ok := field.Tag.Lookup("default")
 			if !ok {
-				return fmt.Errorf("missing arg %s", key)
+				return fmt.Errorf("missing %s arg %s", method, key)
 			}
 			fContent = defaultValue
 		}
 
-		if fContent[0] == '"' {
+		if fContent[0] == '"' && len(fContent) > 2 && fContent[len(fContent)-1] == '"' {
 			// 去掉字符串两边的引号
 			fContent = fContent[1 : len(fContent)-1]
 		}
@@ -139,6 +140,12 @@ func (x *X) Parse(obj any) error {
 				return invalidArg
 			}
 			fieldValue.SetUint(n)
+		case reflect.Bool:
+			n, err := strconv.ParseBool(fContent)
+			if err != nil && !isPointer {
+				return invalidArg
+			}
+			fieldValue.SetBool(n)
 		case reflect.Slice:
 			err := json.Unmarshal([]byte(fContent), fieldValue.Addr().Interface())
 			if err != nil {

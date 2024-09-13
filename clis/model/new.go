@@ -67,13 +67,16 @@ func new_model() error {
 		}
 	}
 	if isSubResource != "" {
-		args = append(args, tpls.NewAstField(fmt.Sprintf("%sID", utils.SnakeToCamel(isSubResource)), "string",
-			fmt.Sprintf("`json:\"%s_id\" gorm:\"primaryKey;type:varchar(32)\" methods:\"get,post,patch,delete\" parse:\"path\"`", isSubResource)))
+		ownerObj := utils.SnakeToCamel(isSubResource)
+		args = append(args, tpls.NewAstField(fmt.Sprintf("%sID", ownerObj), "string",
+			fmt.Sprintf("`json:\"%s_id\" methods:\"post,*patch\" parse:\"path\"`", isSubResource)))
+		args = append(args, tpls.NewAstField(ownerObj, "*"+ownerObj,
+			fmt.Sprintf("`json:\"%s\"`", isSubResource)))
 	}
-	args = append(args, tpls.NewAstField("Name", "string", "`json:\"name\" gorm:\"type:varchar(64)\" methods:\"post,patch,list\" parse:\"json\"`"))
+	args = append(args, tpls.NewAstField("Name", "string", "`json:\"name\" methods:\"post,put,*patch,*list\" parse:\"json\"`"))
 	if *nameObj == "demo" {
-		args = append(args, tpls.NewAstField("QueryA", "string", "`json:\"query_a\" methods:\"get,post\" parse:\"query\"`"))
-		args = append(args, tpls.NewAstField("HeaderB", "string", "`json:\"header_b\" methods:\"get,post\" parse:\"header\"`"))
+		args = append(args, tpls.NewAstField("QueryA", "string", "`json:\"query_a\" methods:\"post,*list\" parse:\"query\"`"))
+		args = append(args, tpls.NewAstField("HeaderB", "string", "`json:\"header_b\" methods:\"post,*list\" parse:\"header\"`"))
 	}
 	logv.AssertError(fAst.AddStructWithFields(utils.SnakeToCamel(fname),
 		args...,

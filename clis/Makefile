@@ -13,8 +13,7 @@ cmd=go run clis.go -l debug --dir ${cache} -y --repo testapp
 test:clean
 	@${cmd} app  new
 	@${cmd} model new
-	@${cmd} model new -n app/user
-	@${cmd} model new -n app/user.auth
+	@${cmd} model new -n app/app
 	@${cmd} model new -n user
 	@${cmd} model new -n user.cache
 	@${cmd} model gen

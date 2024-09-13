@@ -13,9 +13,9 @@ import (
 
 type BaseModel struct {
     // ID        uint           `json:"id" gorm:"primaryKey" methods:"get,patch,delete" parse:"path"`
-    ID        string         `json:"id" gorm:"primaryKey;type:varchar(32)" methods:"get,patch,delete" parse:"path"`
-    CreatedAt time.Time      `json:"created_at" methods:"list" parse:"query"`
-	UpdatedAt time.Time      `json:"updated_at" methods:"list" parse:"query"`
+    ID        string         `json:"id" gorm:"primaryKey;type:varchar(32)" methods:"get,put,patch,delete" parse:"path"`
+    CreatedAt time.Time      `json:"created_at" methods:"*list" parse:"query"`
+	UpdatedAt time.Time      `json:"updated_at" methods:"*list" parse:"query"`
 	DeletedAt gorm.DeletedAt `gorm:"index" json:"-"`
 }
 

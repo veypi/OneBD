@@ -21,15 +21,18 @@ import (
 
 func create_api_func(fAst *tpls.Ast, obj string, method string, objFields []*ast.Field) *ast.FuncDecl {
 
-	// 构建变量声明：opts := M.ObjMethod{}
+	// 构建变量声明：opts := &M.ObjMethod{}
 	optsDecl := &ast.AssignStmt{
 		Lhs: []ast.Expr{ast.NewIdent("opts")},
 		Tok: token.DEFINE,
 		Rhs: []ast.Expr{
-			&ast.CompositeLit{
-				Type: &ast.SelectorExpr{
-					X:   ast.NewIdent("M"),
-					Sel: ast.NewIdent(obj + method),
+			&ast.UnaryExpr{
+				Op: token.AND, // 取地址符号 &
+				X: &ast.CompositeLit{
+					Type: &ast.SelectorExpr{
+						X:   ast.NewIdent("M"),
+						Sel: ast.NewIdent(obj + method),
+					},
 				},
 			},
 		},
@@ -40,8 +43,8 @@ func create_api_func(fAst *tpls.Ast, obj string, method string, objFields []*ast
 		Tok: token.DEFINE,
 		Rhs: []ast.Expr{
 			&ast.CallExpr{
-				Fun:  ast.NewIdent("opts.Parse"),
-				Args: []ast.Expr{ast.NewIdent("x")},
+				Fun:  ast.NewIdent("x.Parse"),
+				Args: []ast.Expr{ast.NewIdent("opts")},
 			},
 		},
 	}
@@ -110,7 +113,12 @@ func create_api_func(fAst *tpls.Ast, obj string, method string, objFields []*ast
 			temp["name"] = f.Names[0].Name
 			temp["snake"] = utils.CamelToSnake(f.Names[0].Name)
 		}
-		temp["type"] = fmt.Sprintf("%s", f.Type)
+		if ft, ok := f.Type.(*ast.StarExpr); ok {
+			temp["is_pointer"] = "true"
+			temp["type"] = fmt.Sprintf("%s", ft.X)
+		} else {
+			temp["type"] = fmt.Sprintf("%s", f.Type)
+		}
 		if f.Tag != nil {
 			temp["tag"] = f.Tag.Value
 		}
@@ -125,7 +133,8 @@ func create_api_func(fAst *tpls.Ast, obj string, method string, objFields []*ast
 		for _, s := range strings.Split(customs.String(), "\n") {
 			if strings.HasPrefix(s, "import ") {
 				fAst.AddImport(strings.Split(s, " ")[1])
-			} else if s != "" {
+			} else if s != "" && s != "\n" && strings.Trim(s, " ") != "" {
+				// logv.WithNoCaller.Warn().Msgf("|%s", s)
 				customStmts = append(customStmts, &ast.ExprStmt{X: ast.NewIdent(s)})
 			}
 		}
@@ -193,7 +202,7 @@ func create_use_func(name string) *ast.FuncDecl {
 func create_use_stmt(name, method string) ast.Stmt {
 	u := `"/"`
 	callMethod := method
-	if method == "Get" || method == "Patch" || method == "Delete" {
+	if method == "Get" || method == "Patch" || method == "Delete" || method == "Put" {
 		u = fmt.Sprintf(`"/:%s_id"`, utils.CamelToSnake(name))
 	}
 	if method == "List" {

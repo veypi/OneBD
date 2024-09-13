@@ -15,6 +15,8 @@ import (
 	"net/http"
 	"os"
 	"path"
+	"reflect"
+	"runtime"
 	"strings"
 	"time"
 
@@ -109,7 +111,11 @@ func (r *route) tree() []string {
 		}
 		item = "\033[32m" + item + "\033[0m"
 		for m := range r.handlers {
-			item += " " + m
+			item += "\n    " + m
+			for _, h := range r.handlers[m] {
+				op := reflect.ValueOf(h).Pointer()
+				item += fmt.Sprintf(" %s", runtime.FuncForPC(op).Name())
+			}
 		}
 		res = append(res, item)
 	}

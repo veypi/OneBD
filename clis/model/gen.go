@@ -74,10 +74,7 @@ func gen_from_file(fname string) error {
 	newStructs := make(map[string][]*ast.Field)
 
 	// 用于存储需要的import路径
-	imports := map[string]bool{
-		"encoding/json":               true,
-		"github.com/veypi/OneBD/rest": true,
-	}
+	imports := map[string]bool{}
 	initPath := utils.PathJoin(*cmds.DirRoot, *cmds.DirModel, "init.go")
 	initAst, err := tpls.NewAst(initPath)
 	if err != nil {
@@ -146,10 +143,10 @@ func gen_from_file(fname string) error {
 
 	for _, t := range structNames {
 		fAst.AddStructWithFields(t, newStructs[t]...)
-		parseFc := createParseBody(t, newStructs[t], imports)
-		if parseFc != nil {
-			fAst.AddStructMethods(t, "Parse", parseFc, true)
-		}
+		// parseFc := createParseBody(t, newStructs[t], imports)
+		// if parseFc != nil {
+		// 	fAst.AddStructMethods(t, "Parse", parseFc, true)
+		// }
 		// break
 	}
 	for a := range imports {
@@ -169,7 +166,15 @@ func parseTag(field *ast.Field, Obj string, newStructs map[string][]*ast.Field, 
 	for _, tag := range res[1:] {
 		methods := strings.Split(strings.ReplaceAll(tag, " ", ""), ",")
 		for _, m := range methods {
-			method := utils.ToTitle(m)
+			method := m
+			typ := field.Type
+			if strings.HasPrefix(method, "*") {
+				method = method[1:]
+				if _, ok := typ.(*ast.StarExpr); !ok {
+					typ = &ast.StarExpr{X: typ}
+				}
+			}
+			method = utils.ToTitle(method)
 			if !utils.InList(method, allowedMethods) {
 				logv.Warn().Msgf("method %s not allowed", method)
 				continue
@@ -177,11 +182,15 @@ func parseTag(field *ast.Field, Obj string, newStructs map[string][]*ast.Field, 
 			if newStructs[Obj+method] == nil {
 				newStructs[Obj+method] = make([]*ast.Field, 0, 4)
 			}
-			typ := field.Type
+			tag := strings.ReplaceAll(field.Tag.Value, res[0], "")
+			if field.Names[0].Name == "ID" {
+				// 如果字段名是ID，若没有显性标注path别名，则自动将tag中的`parse:"path"`替换为`parse:"path@obj_id"`
+				tag = strings.ReplaceAll(tag, `parse:"path"`, fmt.Sprintf(`parse:"path@%s_id"`, utils.CamelToSnake(Obj)))
+			}
 			newStructs[Obj+method] = append(newStructs[Obj+method], &ast.Field{
 				Names: []*ast.Ident{{Name: field.Names[0].Name}},
 				Type:  typ,
-				Tag:   &ast.BasicLit{Value: strings.ReplaceAll(field.Tag.Value, res[0], "")},
+				Tag:   &ast.BasicLit{Value: tag},
 			})
 			// 检查字段类型并添加相应的import路径
 			checkAndAddImport(field.Type, imports)
@@ -238,4 +247,41 @@ func getImportPath(typeName string) string {
 	}
 
 	return importPaths[typeName]
+}
+
+func addMigrator(sName string, fAst *tpls.Ast) error {
+	fcMigrate := fAst.GetMethod("init")
+	if fcMigrate == nil {
+		fcMigrate = &ast.FuncDecl{
+			Name: ast.NewIdent("init"),
+			Body: &ast.BlockStmt{
+				List: []ast.Stmt{},
+			},
+			Type: &ast.FuncType{},
+		}
+		fAst.Decls = append(fAst.Decls, fcMigrate)
+	}
+	strFc, err := tpls.Ast2Str(fcMigrate)
+	if err != nil {
+		return err
+	}
+	if strings.Contains(strFc, fmt.Sprintf("&%s{}", sName)) {
+		return nil
+	}
+	logv.Debug().Msgf("add auto migrate object: %s", sName)
+	var item ast.Stmt = &ast.AssignStmt{
+		Lhs: []ast.Expr{ast.NewIdent("cfg.ObjList")},
+		Tok: token.ASSIGN,
+		Rhs: []ast.Expr{
+			&ast.CallExpr{
+				Fun: ast.NewIdent("append"),
+				Args: []ast.Expr{
+					ast.NewIdent("cfg.ObjList"),
+					ast.NewIdent(fmt.Sprintf("&%s{}", sName)),
+				},
+			}},
+	}
+	fcMigrate.Body.List = utils.InsertAt(fcMigrate.Body.List, -1, item)
+	fAst.AddImport(*cmds.RepoName + "/cfg")
+	return nil
 }

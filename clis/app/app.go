@@ -41,9 +41,6 @@ func build_app() error {
 	modelF := tpls.OpenFile(*cmds.DirModel, "init.go")
 	defer modelF.Close()
 	logv.AssertError(tpls.T("models", "init").Execute(modelF, tpls.Params()))
-	vtools := tpls.OpenFile("vtools", "tools.go")
-	defer vtools.Close()
-	logv.AssertError(tpls.T("vtools", "typ").Execute(vtools, tpls.Params()))
 
 	logv.AssertError(tpls.GoFmt("."))
 	logv.AssertError(tpls.GoInit(*cmds.RepoName))
