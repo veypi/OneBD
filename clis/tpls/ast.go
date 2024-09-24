@@ -120,17 +120,24 @@ func (a *Ast) AddStructMethods(name string, fcName string, fc *ast.FuncDecl, reW
 	return
 }
 
-func (a *Ast) AppendStmtInMethod(t ast.Stmt, fc *ast.FuncDecl) {
+func (a *Ast) AppendStmtInMethod(t ast.Stmt, fc *ast.FuncDecl, keywords ...string) {
 	fcStr, _ := Ast2Str(fc)
 	tStr, _ := Ast2Str(t)
-	if !strings.Contains(fcStr, tStr) {
-		fc.Body.List = append(fc.Body.List, t)
+	if len(keywords) > 0 {
+		for _, k := range keywords {
+			if strings.Contains(fcStr, k) {
+				return
+			}
+		}
+	} else if strings.Contains(fcStr, tStr) {
+		return
 	}
+	fc.Body.List = append(fc.Body.List, t)
 	return
 }
 
 // add or replace methods
-func (a *Ast) AddMethod(fc *ast.FuncDecl, reWrite bool) {
+func (a *Ast) AddMethod(fc *ast.FuncDecl, reWrite bool) bool {
 	for _, decl := range a.Decls {
 		if funcDecl, ok := decl.(*ast.FuncDecl); ok {
 			if funcDecl.Name.Name == fc.Name.Name {
@@ -139,13 +146,14 @@ func (a *Ast) AddMethod(fc *ast.FuncDecl, reWrite bool) {
 					funcDecl.Doc = fc.Doc
 					funcDecl.Body = fc.Body
 					funcDecl.Type = fc.Type
+					return true
 				}
-				return
+				return false
 			}
 		}
 	}
 	a.Decls = append(a.Decls, fc)
-	return
+	return true
 }
 
 func (a *Ast) GetAllStructs() map[string]*ast.StructType {
@@ -182,8 +190,6 @@ func (a *Ast) AddStructWithFields(name string, fields ...*ast.Field) error {
 						field_found := false
 						for _, tf := range styp.Fields.List {
 							if len(tf.Names) > 0 && len(f.Names) > 0 && tf.Names[0].Name == f.Names[0].Name {
-								tf.Type = f.Type
-								tf.Tag = f.Tag
 								field_found = true
 							}
 							if len(tf.Names) == 0 && len(f.Names) == 0 {

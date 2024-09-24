@@ -15,21 +15,28 @@ import (
 	"github.com/veypi/utils/logv"
 )
 
-func GoFmt(fp string) error {
+func GoFmt(fp string) {
 	_, err := run("gofmt", "-w", fp)
-	return err
+	if err != nil {
+		logv.Warn().Msgf("gofmt -w %s failed", fp)
+	}
 }
 
-func GoInit(name string) error {
+func GoInit(name string) {
 	_, err := run("go", "mod", "init", name)
-	return err
+	if err != nil {
+		logv.Warn().Msgf("go mod init %s failed", name)
+	}
 }
 
-func GoModtidy() error {
-	run("bash", "-c", "echo '\nreplace github.com/veypi/OneBD => ../../workspace/OneBD/\n' >> go.mod")
-	run("bash", "-c", "echo '\nreplace github.com/veypi/utils => ../../workspace/OceanCurrent/utils/\n' >> go.mod")
+func GoModtidy() {
+	// TODO: test code
+	// run("bash", "-c", "echo '\nreplace github.com/veypi/OneBD => ../../workspace/OneBD/\n' >> go.mod")
+	// run("bash", "-c", "echo '\nreplace github.com/veypi/utils => ../../workspace/OceanCurrent/utils/\n' >> go.mod")
 	_, err := run("go", "mod", "tidy")
-	return err
+	if err != nil {
+		logv.Warn().Msgf("go mod tidy failed: %v", err)
+	}
 }
 
 func run(acts ...string) (string, error) {

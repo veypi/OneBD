@@ -27,7 +27,7 @@ var (
 	ForceWrite = Main.Bool("y", false, "force to overwrite file")
 )
 
-var LogLevel = Main.String("l", "info", "log level: trace|debug|info|warn|error|fatal")
+var LogLevel = Main.String("l", "debug", "log level: trace|debug|info|warn|error|fatal")
 
 func Parse() {
 	Main.Parse()

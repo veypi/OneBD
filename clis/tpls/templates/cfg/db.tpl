@@ -22,6 +22,14 @@ var ObjList = make([]any, 0, 10)
 
 func init() {
 	cmdMigrate.Command = func() error {
+		// create table without constraints
+		DB().DisableForeignKeyConstraintWhenMigrating = true
+		err := DB().AutoMigrate(ObjList...)
+		if err != nil {
+			return err
+		}
+		// create constraints
+		DB().DisableForeignKeyConstraintWhenMigrating = false
 		return DB().AutoMigrate(ObjList...)
 	}
 	cmdDB.SubCommand("drop", "drop database").Command = func() error {

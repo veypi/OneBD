@@ -19,7 +19,7 @@ import (
 	"github.com/veypi/utils/logv"
 )
 
-func create_api_func(fAst *tpls.Ast, obj string, method string, objFields []*ast.Field) *ast.FuncDecl {
+func create_api_func(obj string, method string, objFields []*ast.Field) (*ast.FuncDecl, []string) {
 
 	// 构建变量声明：opts := &M.ObjMethod{}
 	optsDecl := &ast.AssignStmt{
@@ -129,10 +129,11 @@ func create_api_func(fAst *tpls.Ast, obj string, method string, objFields []*ast
 		&ast.ExprStmt{X: ast.NewIdent("")},
 		&ast.ExprStmt{X: ast.NewIdent("")},
 	}
+	imports := make([]string, 0, 10)
 	if customs.Len() > 0 {
 		for _, s := range strings.Split(customs.String(), "\n") {
 			if strings.HasPrefix(s, "import ") {
-				fAst.AddImport(strings.Split(s, " ")[1])
+				imports = append(imports, strings.Split(s, " ")[1])
 			} else if s != "" && s != "\n" && strings.Trim(s, " ") != "" {
 				// logv.WithNoCaller.Warn().Msgf("|%s", s)
 				customStmts = append(customStmts, &ast.ExprStmt{X: ast.NewIdent(s)})
@@ -176,7 +177,7 @@ func create_api_func(fAst *tpls.Ast, obj string, method string, objFields []*ast
 		Body: &ast.BlockStmt{
 			List: body,
 		},
-	}
+	}, imports
 }
 
 func create_use_func(name string) *ast.FuncDecl {

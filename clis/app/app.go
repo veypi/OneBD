@@ -42,8 +42,8 @@ func build_app() error {
 	defer modelF.Close()
 	logv.AssertError(tpls.T("models", "init").Execute(modelF, tpls.Params()))
 
-	logv.AssertError(tpls.GoFmt("."))
-	logv.AssertError(tpls.GoInit(*cmds.RepoName))
-	logv.AssertError(tpls.GoModtidy())
+	tpls.GoFmt(".")
+	tpls.GoInit(*cmds.RepoName)
+	tpls.GoModtidy()
 	return nil
 }

@@ -13,7 +13,6 @@ import (
 	"go/token"
 	"os"
 	"path/filepath"
-	"sort"
 	"strings"
 
 	"github.com/veypi/OneBD/clis/cmds"
@@ -70,11 +69,7 @@ func gen_from_file(fname string) error {
 		return nil
 	}
 	fast := logv.AssertFuncErr(tpls.NewAst(fname))
-	// 遍历AST，找到所有结构体
-	newStructs := make(map[string][]*ast.Field)
 
-	// 用于存储需要的import路径
-	imports := map[string]bool{}
 	initPath := utils.PathJoin(*cmds.DirRoot, *cmds.DirModel, "init.go")
 	initAst, err := tpls.NewAst(initPath)
 	if err != nil {
@@ -92,6 +87,8 @@ func gen_from_file(fname string) error {
 	} else {
 		migrateAst = tpls.NewEmptyAst(fast.Name.Name)
 	}
+	fAbsPath := filepath.Join(filepath.Dir(fname), strings.ReplaceAll(filepath.Base(fname), ".go", ".gen.go"))
+	genAst := logv.AssertFuncErr(tpls.NewFileOrEmptyAst(fAbsPath, filepath.Base(filepath.Dir(fname))))
 	for _, decl := range fast.Decls {
 		genDecl, ok := decl.(*ast.GenDecl)
 		if !ok || genDecl.Tok != token.TYPE {
@@ -121,11 +118,11 @@ func gen_from_file(fname string) error {
 						logv.Debug().Msgf("not found struct: %v", field.Type)
 					} else {
 						for _, subF := range styp.Fields.List {
-							parseTag(subF, typeSpec.Name.Name, newStructs, imports)
+							parseTag(subF, typeSpec.Name.Name, genAst)
 						}
 					}
 				}
-				parseTag(field, typeSpec.Name.Name, newStructs, imports)
+				parseTag(field, typeSpec.Name.Name, genAst)
 			}
 		}
 	}
@@ -133,29 +130,11 @@ func gen_from_file(fname string) error {
 	if err != nil {
 		return err
 	}
-	fAbsPath := filepath.Join(filepath.Dir(fname), strings.ReplaceAll(filepath.Base(fname), ".go", ".gen.go"))
-	fAst := logv.AssertFuncErr(tpls.NewFileOrEmptyAst(fAbsPath, filepath.Base(filepath.Dir(fname))))
-	structNames := make([]string, 0, len(newStructs))
-	for k := range newStructs {
-		structNames = append(structNames, k)
-	}
-	sort.Strings(structNames)
 
-	for _, t := range structNames {
-		fAst.AddStructWithFields(t, newStructs[t]...)
-		// parseFc := createParseBody(t, newStructs[t], imports)
-		// if parseFc != nil {
-		// 	fAst.AddStructMethods(t, "Parse", parseFc, true)
-		// }
-		// break
-	}
-	for a := range imports {
-		fAst.AddImport(a)
-	}
-	return fAst.Dump(fAbsPath)
+	return genAst.Dump(fAbsPath)
 }
 
-func parseTag(field *ast.Field, Obj string, newStructs map[string][]*ast.Field, imports map[string]bool) {
+func parseTag(field *ast.Field, Obj string, genAst *tpls.Ast) {
 	if field.Tag == nil {
 		return
 	}
@@ -179,21 +158,19 @@ func parseTag(field *ast.Field, Obj string, newStructs map[string][]*ast.Field, 
 				logv.Warn().Msgf("method %s not allowed", method)
 				continue
 			}
-			if newStructs[Obj+method] == nil {
-				newStructs[Obj+method] = make([]*ast.Field, 0, 4)
-			}
 			tag := strings.ReplaceAll(field.Tag.Value, res[0], "")
 			if field.Names[0].Name == "ID" {
 				// 如果字段名是ID，若没有显性标注path别名，则自动将tag中的`parse:"path"`替换为`parse:"path@obj_id"`
 				tag = strings.ReplaceAll(tag, `parse:"path"`, fmt.Sprintf(`parse:"path@%s_id"`, utils.CamelToSnake(Obj)))
 			}
-			newStructs[Obj+method] = append(newStructs[Obj+method], &ast.Field{
-				Names: []*ast.Ident{{Name: field.Names[0].Name}},
-				Type:  typ,
-				Tag:   &ast.BasicLit{Value: tag},
-			})
+			genAst.AddStructWithFields(Obj+method,
+				&ast.Field{
+					Names: []*ast.Ident{{Name: field.Names[0].Name}},
+					Type:  typ,
+					Tag:   &ast.BasicLit{Value: tag},
+				})
 			// 检查字段类型并添加相应的import路径
-			checkAndAddImport(field.Type, imports)
+			checkAndAddImport(field.Type, genAst)
 		}
 	}
 }
@@ -210,7 +187,7 @@ func getStructName(expr ast.Expr) string {
 }
 
 // checkAndAddImport 检查字段类型并根据需要添加相应的import路径
-func checkAndAddImport(expr ast.Expr, imports map[string]bool) {
+func checkAndAddImport(expr ast.Expr, fAst *tpls.Ast) {
 	switch t := expr.(type) {
 	case *ast.Ident:
 		// 基本类型无需导入
@@ -219,22 +196,22 @@ func checkAndAddImport(expr ast.Expr, imports map[string]bool) {
 		if pkgIdent, ok := t.X.(*ast.Ident); ok {
 			importPath := getImportPath(pkgIdent.Name)
 			if importPath != "" {
-				imports[importPath] = true
+				fAst.AddImport(importPath)
 			}
 		}
 	case *ast.StarExpr:
 		// 指针类型，递归处理
-		checkAndAddImport(t.X, imports)
+		checkAndAddImport(t.X, fAst)
 	case *ast.ArrayType:
 		// 数组类型，递归处理
-		checkAndAddImport(t.Elt, imports)
+		checkAndAddImport(t.Elt, fAst)
 	case *ast.MapType:
 		// map类型，递归处理键和值的类型
-		checkAndAddImport(t.Key, imports)
-		checkAndAddImport(t.Value, imports)
+		checkAndAddImport(t.Key, fAst)
+		checkAndAddImport(t.Value, fAst)
 	case *ast.ChanType:
 		// 通道类型，递归处理元素类型
-		checkAndAddImport(t.Value, imports)
+		checkAndAddImport(t.Value, fAst)
 	}
 }
 

@@ -46,7 +46,8 @@ func gen_api() error {
 	if err != nil {
 		return err
 	}
-	return tpls.GoModtidy()
+	tpls.GoModtidy()
+	return nil
 }
 
 func gen_from_dir(dir string, fragments ...string) error {
@@ -154,8 +155,13 @@ func gen_from_file(fname string, fragments ...string) error {
 		fAst.AddImport(*cmds.RepoName + "/cfg")
 		useFunc := fAst.GetMethod("use" + name)
 		for m := range objs_gen[name] {
-			fAst.AddMethod(create_api_func(fAst, name, m, objs_gen[name][m].Fields.List), false)
-			fAst.AppendStmtInMethod(create_use_stmt(name, m), useFunc)
+			mfunc, mimports := create_api_func(name, m, objs_gen[name][m].Fields.List)
+			if fAst.AddMethod(mfunc, false) {
+				for _, mi := range mimports {
+					fAst.AddImport(mi)
+				}
+			}
+			fAst.AppendStmtInMethod(create_use_stmt(name, m), useFunc, utils.ToLowerFirst(name)+m)
 		}
 		err = fAst.Dump(tPath)
 		if err != nil {
