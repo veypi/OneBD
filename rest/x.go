@@ -22,30 +22,34 @@ import (
 )
 
 type X struct {
-	http.ResponseWriter
+	writer  http.ResponseWriter
 	Request *http.Request
+	code    int
 	Params  Params
 	fcs     []any
 	fid     int
 }
 
+var _ http.ResponseWriter = &X{}
+
 // 从不同来源解析目标结构体一级字段
 // tag标签 parse:"path/header/query/form/json" 可以追加为 path@alias_name
 // tag标签 default:""
 // 字段为指针类型时为可选参数,defalt标签不生效
-// 字段为非指针类型时为必选参数，default标签生效，未设置该值且未发现参数时报参数缺失错误
+// 字段为非指针类型时是必选参数，default标签生效，未设置该值且未发现参数时报参数缺失错误
+// json 字段由json解码控制，没有default机制
 func (x *X) Parse(obj any) error {
 	v := reflect.ValueOf(obj).Elem()
 	contentType := x.Request.Header.Get("Content-Type")
 	if contentType == "application/x-www-form-urlencoded" {
 		err := x.Request.ParseForm()
 		if err != nil {
-			return fmt.Errorf("parse form error %v", err)
+			return fmt.Errorf("%w: %v", ErrParse, err)
 		}
-	} else if contentType == "application/json" {
+	} else if strings.Contains(contentType, "application/json") {
 		err := json.NewDecoder(x.Request.Body).Decode(obj)
 		if err != nil {
-			return fmt.Errorf("parse json error %v", err)
+			return fmt.Errorf("%w: %v", ErrParse, err)
 		}
 	}
 	t := v.Type()
@@ -95,9 +99,12 @@ func (x *X) Parse(obj any) error {
 				fContent = tmps[0]
 			}
 		case "json", "":
+			if field.Type.Kind() != reflect.Ptr && fieldValue.IsZero() {
+				return fmt.Errorf("%w: %s@%s", ErrArgMissing, key, method)
+			}
 			continue
 		default:
-			return fmt.Errorf("unknown parse method %s", method)
+			return fmt.Errorf("%w: unknown parse method %s", ErrParse)
 		}
 		ft := field.Type
 		isPointer := false
@@ -114,7 +121,7 @@ func (x *X) Parse(obj any) error {
 			// 非指针类型没有参数根据默认值设置，没有则返回缺少参数
 			defaultValue, ok := field.Tag.Lookup("default")
 			if !ok {
-				return fmt.Errorf("missing %s arg %s", method, key)
+				return fmt.Errorf("%w: %s@%s", ErrArgMissing, key, method)
 			}
 			fContent = defaultValue
 		}
@@ -124,7 +131,7 @@ func (x *X) Parse(obj any) error {
 			fContent = fContent[1 : len(fContent)-1]
 		}
 
-		var invalidArg = fmt.Errorf("invalid arg %s: %s", key, fContent)
+		var invalidArg = fmt.Errorf("%w: %s: %s", ErrArgInvalid, key, fContent)
 		switch ft.Kind() {
 		case reflect.String:
 			fieldValue.SetString(fContent)
@@ -196,7 +203,7 @@ func (x *X) SetParam(k string, v string) {
 func (x *X) Next(args ...any) (err error) {
 	defer func() {
 		if e := recover(); e != nil {
-			err = fmt.Errorf("%s", e)
+			err = fmt.Errorf("%w: %v", ErrCrash, e)
 			debug.PrintStack()
 		}
 	}()
@@ -209,9 +216,9 @@ func (x *X) Next(args ...any) (err error) {
 	case fc0:
 		err = fc(x)
 	case fc1:
-		err = fc(x.ResponseWriter, x.Request)
+		err = fc(x, x.Request)
 	case fc2:
-		fc(x.ResponseWriter, x.Request)
+		fc(x, x.Request)
 	case fc3:
 		var arg any
 		arg, err = fc(x)
@@ -231,36 +238,26 @@ func (x *X) Next(args ...any) (err error) {
 	return x.Next(args...)
 }
 
+func (x *X) Write(p []byte) (n int, err error) {
+	x.writer.WriteHeader(x.code)
+	return x.writer.Write(p)
+}
+
+func (x *X) WriteHeader(statusCode int) {
+	x.code = statusCode
+}
+func (x *X) Header() http.Header {
+	return x.writer.Header()
+}
+
 func (x *X) JSON(data any) error {
 	v, err := json.Marshal(data)
 	if err != nil {
 		return err
 	}
-	x.ResponseWriter.Header().Add("Content-Type", "application/json")
-	x.ResponseWriter.WriteHeader(http.StatusOK)
-	_, err = x.ResponseWriter.Write(v)
+	x.Header().Add("Content-Type", "application/json")
+	_, err = x.Write(v)
 	return err
-}
-
-var xPool = sync.Pool{
-	New: func() any {
-		return &X{
-			Params: make(Params, 0),
-		}
-	},
-}
-
-func acquire() *X {
-	x := xPool.Get().(*X)
-	return x
-}
-
-func release(x *X) {
-	x.fid = 0
-	x.Params = x.Params[0:0]
-	x.Request = nil
-	x.ResponseWriter = nil
-	xPool.Put(x)
 }
 
 type Params [][2]string
@@ -283,4 +280,28 @@ func (ps *Params) GetInt(k string) int {
 	v, _ := ps.Get(k)
 	vv, _ := strconv.Atoi(v)
 	return vv
+}
+
+var xPool = sync.Pool{
+	New: func() any {
+		return &X{
+			Params: make(Params, 0),
+			code:   200,
+		}
+	},
+}
+
+func acquire() *X {
+	x := xPool.Get().(*X)
+	return x
+}
+
+func release(x *X) {
+	x.fid = 0
+	x.Params = x.Params[0:0]
+	x.Request = nil
+	x.writer = nil
+	x.code = 200
+	x.fcs = nil
+	xPool.Put(x)
 }
