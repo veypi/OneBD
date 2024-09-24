@@ -31,11 +31,11 @@ type fc3 = func(*X) (any, error)
 type fc4 = func(*X, any) error
 type fc5 = func(*X, ...any) error
 
-type ErrHandle = func(x *X, err error, code int)
+type ApiHandler interface {
+	fc0 | fc1 | fc2 | fc3 | fc4 | fc5
+}
 
-var (
-	ErrNotFound = errors.New("not found")
-)
+type ErrHandle = func(x *X, err error)
 
 var allowedMethods = []string{
 	http.MethodGet, http.MethodHead, http.MethodPost, http.MethodPut,
@@ -44,8 +44,12 @@ var allowedMethods = []string{
 
 func NewRouter() Router {
 	r := &route{}
-	r.errHandler = func(x *X, err error, code int) {
-		x.WriteHeader(code)
+	r.errHandler = func(x *X, err error) {
+		if errors.Is(err, ErrNotFound) {
+			x.WriteHeader(404)
+		} else {
+			x.WriteHeader(500)
+		}
 		if err != nil {
 			x.Write([]byte(err.Error()))
 		}
@@ -179,26 +183,26 @@ func (r *route) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	x := acquire()
 	defer release(x)
 	x.Request = req
-	x.ResponseWriter = w
+	x.writer = w
 	start := time.Now()
 
 	if subR := r.match(req.URL.Path[1:], req.Method, x); subR != nil {
 		x.fcs = subR.handlers[req.Method]
 		err := x.Next()
 		if err != nil {
-			subR.fire_err(x, err, 500)
+			subR.fire_err(x, err)
 		}
 	} else {
-		r.fire_err(x, ErrNotFound, 404)
+		r.fire_err(x, ErrNotFound)
 	}
 	logv.WithNoCaller.Debug().Int("ms", int(time.Since(start).Milliseconds())).Str("method", req.Method).Msg(req.RequestURI)
 }
 
-func (r *route) fire_err(x *X, err error, code int) {
+func (r *route) fire_err(x *X, err error) {
 	if r.errHandler != nil {
-		r.errHandler(x, err, code)
+		r.errHandler(x, err)
 	} else {
-		r.parent.fire_err(x, err, code)
+		r.parent.fire_err(x, err)
 	}
 }
 
