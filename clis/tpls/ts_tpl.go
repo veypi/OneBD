@@ -93,6 +93,40 @@ func (t *simpleTsTemplate) AddFunc(name string, ps params, p ...string) {
 	}
 }
 
+func (t *simpleTsTemplate) AddImport(line string) {
+	if strings.Contains(t.body, line) {
+		return
+	}
+	for idx, l := range t.body {
+		if l == '\n' {
+			if idx != len(t.body)-1 && t.body[idx+1] != '/' {
+				t.body = t.body[:idx+1] + line + "\n" + t.body[idx+1:]
+				return
+			}
+		}
+	}
+	t.body += "\n" + line + "\n"
+}
+
+// export default {
+// add key here,
+//}
+func (t *simpleTsTemplate) AddDefaultExport(key string) {
+	tReg := regexp.MustCompile(fmt.Sprintf("(?ms:export default {.*?^})"))
+	res := tReg.FindString(t.body)
+	if res == "" {
+		t.body += fmt.Sprintf(`
+export default {
+  %s
+}`, key)
+		return
+	}
+	if strings.Contains(res, key) {
+		return
+	}
+	t.body = strings.Replace(t.body, "export default {", fmt.Sprintf("export default {\n  %s,", key), 1)
+}
+
 func (t *simpleTsTemplate) Dump(nPath ...string) error {
 	p := t.fPath
 	if len(nPath) > 0 && nPath[0] != "" {

@@ -78,15 +78,21 @@ func gen_from_dir(dir string, fragments ...string) error {
 	}
 	indexPath := utils.PathJoin(append(append([]string{*tsDir}, fragments...), "index.ts")...)
 	logv.Warn().Msgf("|%s", indexPath)
+	indextpl := logv.AssertFuncErr(tpls.NewTsTpl(indexPath))
 
 	for _, entry := range entries {
 		ename := entry.Name()
 		fullPath := filepath.Join(absPath, ename)
 		if entry.IsDir() {
 			err = gen_from_dir(fullPath, append(fragments, ename)...)
+			indextpl.AddImport(fmt.Sprintf(`import %s from "./%s"`, ename, ename))
+			indextpl.AddDefaultExport(ename)
 		} else {
 			if strings.HasSuffix(fullPath, ".gen.go") {
-				err = gen_from_gen_file(fullPath, append(fragments, ename[:len(ename)-7])...)
+				obj := ename[:len(ename)-7]
+				err = gen_from_gen_file(fullPath, append(fragments, obj)...)
+				indextpl.AddImport(fmt.Sprintf(`import * as %s from "./%s"`, obj, obj))
+				indextpl.AddDefaultExport(obj)
 			} else if strings.HasSuffix(fullPath, "init.go") {
 			} else if strings.HasSuffix(fullPath, ".go") {
 				err = gen_from_model_file(fullPath, append(fragments, ename[:len(ename)-3])...)
@@ -96,7 +102,7 @@ func gen_from_dir(dir string, fragments ...string) error {
 			return err
 		}
 	}
-	return err
+	return indextpl.Dump()
 }
 
 var typMap = map[string]string{
