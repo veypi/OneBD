@@ -17,6 +17,7 @@ var (
 	App   = Main.SubCommand("app", "generate application code")
 	Tpl   = Main.SubCommand("tpl", "template tools")
 	Api   = Main.SubCommand("api", "api tools")
+	Ts    = Main.SubCommand("ts", "typescript generate tools")
 )
 
 var (

@@ -145,6 +145,9 @@ func parseTag(field *ast.Field, Obj string, genAst *tpls.Ast) {
 	for _, tag := range res[1:] {
 		methods := strings.Split(strings.ReplaceAll(tag, " ", ""), ",")
 		for _, m := range methods {
+			if m == "" {
+				continue
+			}
 			method := m
 			typ := field.Type
 			if strings.HasPrefix(method, "*") {

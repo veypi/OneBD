@@ -12,6 +12,7 @@ import (
 	_ "github.com/veypi/OneBD/clis/app"
 	"github.com/veypi/OneBD/clis/cmds"
 	_ "github.com/veypi/OneBD/clis/model"
+	_ "github.com/veypi/OneBD/clis/ts"
 	"github.com/veypi/utils/logv"
 )
 

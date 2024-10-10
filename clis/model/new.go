@@ -69,7 +69,7 @@ func new_model() error {
 	if isSubResource != "" {
 		ownerObj := utils.SnakeToCamel(isSubResource)
 		args = append(args, tpls.NewAstField(fmt.Sprintf("%sID", ownerObj), "string",
-			fmt.Sprintf("`json:\"%s_id\" methods:\"post,*patch\" parse:\"path\"`", isSubResource)))
+			fmt.Sprintf("`json:\"%s_id\" methods:\"get,list,post,put,patch,delete\" parse:\"path\"`", isSubResource)))
 		args = append(args, tpls.NewAstField(ownerObj, "*"+ownerObj,
 			fmt.Sprintf("`json:\"%s\"`", isSubResource)))
 	}
