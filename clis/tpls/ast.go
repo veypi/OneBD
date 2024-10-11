@@ -156,12 +156,18 @@ func (a *Ast) AddMethod(fc *ast.FuncDecl, reWrite bool) bool {
 	return true
 }
 
-func (a *Ast) GetAllStructs() map[string]*ast.StructType {
-	res := make(map[string]*ast.StructType)
+type SimpleStruct struct {
+	Name   string
+	Fields []*ast.Field
+}
+
+func (a *Ast) GetAllStructs() []*SimpleStruct {
+	res := make([]*SimpleStruct, 0)
 	a.Inspect(func(n ast.Node) bool {
 		if typeSpec, ok := n.(*ast.TypeSpec); ok {
 			if styp, ok := typeSpec.Type.(*ast.StructType); ok {
-				res[typeSpec.Name.Name] = styp
+				// res[typeSpec.Name.Name] = styp
+				res = append(res, &SimpleStruct{Name: typeSpec.Name.Name, Fields: styp.Fields.List})
 			}
 		}
 		return true

@@ -113,11 +113,14 @@ func gen_from_file(fname string) error {
 			// 遍历结构体字段，提取带tag的字段
 			for _, field := range structType.Fields.List {
 				if len(field.Names) == 0 {
-					styp := initStructs[getStructName(field.Type)]
+					sName := getStructName(field.Type)
+					styp := utils.SliceGet(initStructs, func(s *tpls.SimpleStruct) bool {
+						return s.Name == sName
+					})
 					if styp == nil {
 						logv.Debug().Msgf("not found struct: %v", field.Type)
 					} else {
-						for _, subF := range styp.Fields.List {
+						for _, subF := range (*styp).Fields {
 							parseTag(subF, typeSpec.Name.Name, genAst)
 						}
 					}

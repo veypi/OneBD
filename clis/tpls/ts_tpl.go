@@ -70,7 +70,7 @@ func (t *simpleTsTemplate) AddInterface(name string, fields ...[2]string) {
 				newF = strings.Replace(newF, "}", fmt.Sprintf("  %s: %s\n}", field[0], field[1]), 1)
 			} else {
 				// not update exist field type
-				// newF = strings.Replace(newF, fold, fmt.Sprintf("  %s: %s", field[0], field[1]), 1)
+				newF = strings.Replace(newF, fold, fmt.Sprintf("  %s: %s", field[0], field[1]), 1)
 			}
 		}
 		t.body = strings.Replace(t.body, res, newF, 1)

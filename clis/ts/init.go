@@ -27,9 +27,11 @@ var (
 )
 
 var (
-	nameRegex = regexp.MustCompile(`^[a-zA-Z][a-zA-Z0-9\._]*$`)
-	parseReg  = regexp.MustCompile(`parse:"(path|query|header|json|form)(@\w+)?"`)
-	objReg    = regexp.MustCompile(`(\w+)?(Get|List|Post|Put|Patch|Delete)$`)
+	nameRegex     = regexp.MustCompile(`^[a-zA-Z][a-zA-Z0-9\._]*$`)
+	parseReg      = regexp.MustCompile(`parse:"(path|query|header|json|form)(@\w+)?"`)
+	jsonTagReg    = regexp.MustCompile(`json:"([\w-]+)?`)
+	objReg        = regexp.MustCompile(`(\w+)?(Get|List|Post|Put|Patch|Delete)$`)
+	globalStructs = make(map[string][]*ast.Field)
 )
 
 func init() {
@@ -46,6 +48,10 @@ func gen_api() error {
 	fragments := make([]string, 0)
 	if *fromObj != "" {
 		fragments = strings.Split(*fromObj, "/")
+	}
+	initAst := logv.AssertFuncErr(tpls.NewAst(utils.PathJoin(*cmds.DirRoot, *cmds.DirModel, "init.go")))
+	for _, obj := range initAst.GetAllStructs() {
+		globalStructs[obj.Name] = obj.Fields
 	}
 	if utils.PathIsDir(absPath) {
 		err = gen_from_dir(absPath, fragments...)
@@ -77,7 +83,6 @@ func gen_from_dir(dir string, fragments ...string) error {
 		return err
 	}
 	indexPath := utils.PathJoin(append(append([]string{*tsDir}, fragments...), "index.ts")...)
-	logv.Warn().Msgf("|%s", indexPath)
 	indextpl := logv.AssertFuncErr(tpls.NewTsTpl(indexPath))
 
 	for _, entry := range entries {
@@ -106,12 +111,65 @@ func gen_from_dir(dir string, fragments ...string) error {
 }
 
 var typMap = map[string]string{
-	"uint":   "Number",
-	"int":    "Number",
-	"float":  "Number",
-	"string": "String",
-	"[]byte": "String",
+	"uint":   "number",
+	"int":    "number",
+	"float":  "number",
+	"string": "string",
+	"[]byte": "string",
 	"Time":   "Date",
+}
+
+func get_ts_fields_from_struct(origin []*ast.Field, src string) [][2]string {
+	fields := make([][2]string, 0, 8)
+	for _, f := range origin {
+		if len(f.Names) != 0 {
+			typ := "any"
+			name := utils.CamelToSnake(f.Names[0].String())
+			// src 为空时构造返回数据， 不为空时构造请求数据
+			if src != "" {
+				tags := parseReg.FindStringSubmatch(f.Tag.Value)
+				if len(tags) < 2 || tags[1] != src {
+					continue
+				}
+				if len(tags) > 2 && tags[2] != "" {
+					name = tags[2][1:]
+				}
+			} else {
+				tags := jsonTagReg.FindStringSubmatch(f.Tag.Value)
+				if len(tags) > 1 && tags[1] != "" {
+					if tags[1] == "-" {
+						continue
+					} else {
+						name = tags[1]
+					}
+				}
+			}
+			tobj := f.Type
+			if t, ok := tobj.(*ast.StarExpr); ok {
+				if src != "path" {
+					// path 参数不允许为空
+					name = name + "?"
+				}
+				tobj = t.X
+			}
+			if t, ok := tobj.(*ast.Ident); ok {
+				typ = t.Name
+			} else if t, ok := tobj.(*ast.SelectorExpr); ok {
+				typ = t.Sel.Name
+			} else {
+				logv.Warn().Msgf("not found %s %T %v", name, tobj, tobj)
+			}
+			if t, ok := typMap[typ]; ok {
+				typ = t
+			}
+			fields = append(fields, [2]string{name, typ})
+		} else if t, ok := f.Type.(*ast.Ident); ok {
+			if gobj, ok := globalStructs[t.Name]; ok {
+				fields = append(fields, get_ts_fields_from_struct(gobj, src)...)
+			}
+		}
+	}
+	return fields
 }
 
 // generate model file
@@ -121,32 +179,9 @@ func gen_from_model_file(fname string, fragments ...string) error {
 	if err != nil {
 		return err
 	}
-	for n, obj := range fast.GetAllStructs() {
-		fields := make([][2]string, 0, 8)
-		for _, f := range obj.Fields.List {
-			if len(f.Names) != 0 {
-				typ := "any"
-				name := utils.CamelToSnake(f.Names[0].String())
-				tobj := f.Type
-				if t, ok := tobj.(*ast.StarExpr); ok {
-					name = name + "?"
-					tobj = t.X
-				}
-				if t, ok := tobj.(*ast.Ident); ok {
-					typ = t.Name
-				} else if t, ok := tobj.(*ast.SelectorExpr); ok {
-					typ = t.Sel.Name
-				} else {
-					logv.Warn().Msgf("not found %s %T %v", name, tobj, tobj)
-				}
-				if t, ok := typMap[typ]; ok {
-					typ = t
-				}
-				fields = append(fields, [2]string{name, typ})
-			}
-		}
+	for _, obj := range fast.GetAllStructs() {
 		// 生成请求opts
-		tstpl.AddInterface(n, fields...)
+		tstpl.AddInterface(obj.Name, get_ts_fields_from_struct(obj.Fields, "")...)
 	}
 	return tstpl.Dump()
 }
@@ -169,7 +204,7 @@ func gen_from_gen_file(fname string, fragments ...string) error {
 			return err
 		}
 	}
-	for n, obj := range fast.GetAllStructs() {
+	for _, obj := range fast.GetAllStructs() {
 		pathTags := make([]string, 0, 8)
 		for _, p := range fragments {
 			if len(pathTags) > 0 && pathTags[len(pathTags)-1] == p {
@@ -178,11 +213,11 @@ func gen_from_gen_file(fname string, fragments ...string) error {
 			}
 			pathTags = append(pathTags, p)
 		}
-		objFunc := n
-		objName := n
+		objFunc := obj.Name
+		objName := obj.Name
 		method := "Get"
 		ownerObj := utils.SnakeToCamel(fragments[len(fragments)-1])
-		if temp := objReg.FindStringSubmatch(n); len(temp) == 3 {
+		if temp := objReg.FindStringSubmatch(obj.Name); len(temp) == 3 {
 			method = temp[2]
 			if method == "List" {
 				method = "Get"
@@ -194,46 +229,13 @@ func gen_from_gen_file(fname string, fragments ...string) error {
 			} else {
 				objFunc = strings.Replace(objFunc, ownerObj, "", 1)
 			}
+		} else {
+			pathTags = append(pathTags, obj.Name)
 		}
-		fields := make(map[string][][2]string)
-		for _, f := range obj.Fields.List {
-			if len(f.Names) != 0 {
-				tags := parseReg.FindStringSubmatch(f.Tag.Value)
-				if len(tags) < 2 {
-					continue
-				}
-				src := tags[1]
-				typ := "any"
-				name := utils.CamelToSnake(f.Names[0].String())
-				if len(tags) > 2 && tags[2] != "" {
-					name = tags[2][1:]
-				}
-				tobj := f.Type
-				if t, ok := tobj.(*ast.StarExpr); ok {
-					if src != "path" {
-						// path 参数不允许为空
-						name = name + "?"
-					}
-					tobj = t.X
-				}
-				if t, ok := tobj.(*ast.Ident); ok {
-					typ = t.Name
-				} else if t, ok := tobj.(*ast.SelectorExpr); ok {
-					typ = t.Sel.Name
-				} else {
-					logv.Warn().Msgf("not found %s %T %v", name, tobj, tobj)
-				}
-				if t, ok := typMap[typ]; ok {
-					typ = t
-				}
-				fields[src] = append(fields[src], [2]string{name, typ})
-			}
-		}
-		// 生成请求opts
 		args := make([]string, 0, 5)
 		resp := make([]string, 0, 4)
-		if fields["path"] != nil {
-			for _, f := range fields["path"] {
+		if fields := get_ts_fields_from_struct(obj.Fields, "path"); len(fields) > 0 {
+			for _, f := range fields {
 				args = append(args, fmt.Sprintf("%s: %s", f[0], f[1]))
 				tmpf := fmt.Sprintf("${%s}", f[0])
 				if !utils.InList(tmpf, pathTags) {
@@ -241,23 +243,23 @@ func gen_from_gen_file(fname string, fragments ...string) error {
 				}
 			}
 		}
-		if fields["form"] != nil {
-			tstpl.AddInterface(objFunc+"Opts", fields["form"]...)
+		if fields := get_ts_fields_from_struct(obj.Fields, "form"); len(fields) > 0 {
+			tstpl.AddInterface(objFunc+"Opts", fields...)
 			args = append(args, fmt.Sprintf("form: %sOpts", objFunc))
 			resp = append(resp, "form")
 		}
-		if fields["json"] != nil {
-			tstpl.AddInterface(objFunc+"Opts", fields["json"]...)
+		if fields := get_ts_fields_from_struct(obj.Fields, "json"); len(fields) > 0 {
+			tstpl.AddInterface(objFunc+"Opts", fields...)
 			args = append(args, fmt.Sprintf("json: %sOpts", objFunc))
 			resp = append(resp, "json")
 		}
-		if fields["query"] != nil {
-			tstpl.AddInterface(objFunc+"Query", fields["query"]...)
+		if fields := get_ts_fields_from_struct(obj.Fields, "query"); len(fields) > 0 {
+			tstpl.AddInterface(objFunc+"Query", fields...)
 			args = append(args, fmt.Sprintf("query: %sQuery", objFunc))
 			resp = append(resp, "query")
 		}
-		if fields["header"] != nil {
-			tstpl.AddInterface(objFunc+"Header", fields["header"]...)
+		if fields := get_ts_fields_from_struct(obj.Fields, "header"); len(fields) > 0 {
+			tstpl.AddInterface(objFunc+"Header", fields...)
 			args = append(args, fmt.Sprintf("header: %sOpts", objFunc))
 			resp = append(resp, "header")
 		}
