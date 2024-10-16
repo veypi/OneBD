@@ -6,8 +6,9 @@ Auto generate code for backend
 ## model
 
 ### 模型创建
-- 文件夹 资源作用域
+- 文件夹 资源隔离域
 
+2级资源制
 - 文件名 资源
 
 - 文件内同名结构体 主资源

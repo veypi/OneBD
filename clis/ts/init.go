@@ -217,9 +217,11 @@ func gen_from_gen_file(fname string, fragments ...string) error {
 		objName := obj.Name
 		method := "Get"
 		ownerObj := utils.SnakeToCamel(fragments[len(fragments)-1])
+		isListReponse := false
 		if temp := objReg.FindStringSubmatch(obj.Name); len(temp) == 3 {
 			method = temp[2]
 			if method == "List" {
+				isListReponse = true
 				method = "Get"
 			}
 			objName = temp[1]
@@ -267,6 +269,7 @@ func gen_from_gen_file(fname string, fragments ...string) error {
 			With("method", method).
 			With("name", objFunc).
 			With("obj", objName).
+			With("is_list", isListReponse).
 			With("url", "/"+strings.Join(pathTags, "/")).
 			With("args", strings.Join(args, ", ")).
 			With("resp", strings.Join(resp, ", ")),

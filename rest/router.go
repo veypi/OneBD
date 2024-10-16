@@ -195,7 +195,7 @@ func (r *route) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	} else {
 		r.fire_err(x, ErrNotFound)
 	}
-	logv.WithNoCaller.Debug().Int("ms", int(time.Since(start).Milliseconds())).Str("method", req.Method).Msg(req.RequestURI)
+	logv.WithNoCaller.Debug().Int("ms", int(time.Since(start).Milliseconds())).Str("method", req.Method).Int("code", x.code).Msg(req.RequestURI)
 }
 
 func (r *route) fire_err(x *X, err error) {

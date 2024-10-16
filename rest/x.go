@@ -9,7 +9,10 @@ package rest
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
+	"io"
+	"net"
 	"net/http"
 	"net/url"
 	"reflect"
@@ -43,12 +46,14 @@ func (x *X) Parse(obj any) error {
 	contentType := x.Request.Header.Get("Content-Type")
 	if contentType == "application/x-www-form-urlencoded" {
 		err := x.Request.ParseForm()
-		if err != nil {
+		if errors.Is(err, io.EOF) {
+		} else if err != nil {
 			return fmt.Errorf("%w: %v", ErrParse, err)
 		}
 	} else if strings.Contains(contentType, "application/json") {
 		err := json.NewDecoder(x.Request.Body).Decode(obj)
-		if err != nil {
+		if errors.Is(err, io.EOF) {
+		} else if err != nil {
 			return fmt.Errorf("%w: %v", ErrParse, err)
 		}
 	}
@@ -203,7 +208,7 @@ func (x *X) SetParam(k string, v string) {
 func (x *X) Next(args ...any) (err error) {
 	defer func() {
 		if e := recover(); e != nil {
-			err = fmt.Errorf("%w: %v", ErrCrash, e)
+			err = fmt.Errorf("%s: %w", ErrCrash, e)
 			debug.PrintStack()
 		}
 	}()
@@ -258,6 +263,28 @@ func (x *X) JSON(data any) error {
 	x.Header().Add("Content-Type", "application/json")
 	_, err = x.Write(v)
 	return err
+}
+func (x *X) GetRemoteIp() string {
+	// 首先尝试从 X-Forwarded-For 获取 IP 地址
+	ip := x.Request.Header.Get("X-Forwarded-For")
+	if ip != "" {
+		// X-Forwarded-For 可能包含多个 IP 地址，以逗号分隔，
+		// 这里我们取第一个 IP 地址作为客户端的 IP。
+		return strings.TrimSpace(strings.Split(ip, ",")[0])
+	}
+
+	// 如果 X-Forwarded-For 不存在，则尝试从 X-Real-IP 获取 IP 地址
+	ip = x.Request.Header.Get("X-Real-IP")
+	if ip != "" {
+		return ip
+	}
+
+	// 如果以上两个都没有，则直接从 RemoteAddr 获取 IP 地址
+	ip, _, err := net.SplitHostPort(x.Request.RemoteAddr)
+	if err != nil {
+		return ""
+	}
+	return ip
 }
 
 type Params [][2]string
