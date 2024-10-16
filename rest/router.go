@@ -1,9 +1,7 @@
-//
 // router.go
 // Copyright (C) 2024 veypi <i@veypi.com>
 // 2024-08-07 13:45
 // Distributed under terms of the MIT license.
-//
 package rest
 
 import (
@@ -231,7 +229,7 @@ func (r *route) get_subrouter(url string) *route {
 				logv.Assert(false, "url path can not has //")
 			} else if next.fragment[0] == '*' {
 				if last.wildcard != nil {
-					return r.wildcard
+					return last.wildcard
 				}
 				last.wildcard = next
 				return next
