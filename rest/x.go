@@ -244,7 +244,10 @@ func (x *X) Next(args ...any) (err error) {
 }
 
 func (x *X) Write(p []byte) (n int, err error) {
-	x.writer.WriteHeader(x.code)
+	if x.code > 0 {
+		x.writer.WriteHeader(x.code)
+		x.code = 0
+	}
 	return x.writer.Write(p)
 }
 
@@ -320,15 +323,18 @@ var xPool = sync.Pool{
 
 func acquire() *X {
 	x := xPool.Get().(*X)
+	x.code = 200
 	return x
 }
 
 func release(x *X) {
+	if x.code > 0 {
+		x.writer.WriteHeader(x.code)
+	}
 	x.fid = 0
 	x.Params = x.Params[0:0]
 	x.Request = nil
 	x.writer = nil
-	x.code = 200
 	x.fcs = nil
 	xPool.Put(x)
 }
