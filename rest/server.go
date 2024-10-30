@@ -11,6 +11,7 @@ import (
 	"crypto/tls"
 	"net"
 	"net/http"
+	"strings"
 
 	"github.com/veypi/utils/logv"
 	"golang.org/x/net/netutil"
@@ -40,15 +41,56 @@ func New(c *RestConf) (*Application, error) {
 		// TODO
 		ConnContext: nil,
 	}
-	app.server.Handler = app.Router()
+	app.server.Handler = app
 	return app, nil
 }
 
 type Application struct {
 	router   Router
+	muxs     []func(http.ResponseWriter, *http.Request) func(http.ResponseWriter, *http.Request)
 	config   *RestConf
 	server   *http.Server
 	listener net.Listener
+}
+
+func (app *Application) SetMux(m func(w http.ResponseWriter, r *http.Request) func(http.ResponseWriter, *http.Request)) {
+	app.muxs = append(app.muxs, m)
+}
+
+func (app *Application) Domain(d string) Router {
+	newNouter := NewRouter()
+	fc := func(w http.ResponseWriter, r *http.Request) func(http.ResponseWriter, *http.Request) {
+		if r.Host == d {
+			logv.Warn().Msg(r.Host)
+			return newNouter.ServeHTTP
+		}
+		return nil
+	}
+	if strings.HasPrefix(d, "*.") {
+		d = strings.Replace(d, "*.", "", 1)
+		fc = func(w http.ResponseWriter, r *http.Request) func(http.ResponseWriter, *http.Request) {
+			if strings.HasSuffix(r.Host, d) {
+				return newNouter.ServeHTTP
+			}
+			return nil
+		}
+	}
+	app.muxs = append(app.muxs, fc)
+	return newNouter
+}
+
+func (app *Application) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	if len(app.muxs) == 0 {
+		app.router.ServeHTTP(w, r)
+		return
+	}
+	for _, fc := range app.muxs {
+		if tmp := fc(w, r); tmp != nil {
+			tmp(w, r)
+			return
+		}
+	}
+	app.router.ServeHTTP(w, r)
 }
 
 func (app *Application) Router() Router {

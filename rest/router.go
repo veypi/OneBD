@@ -38,7 +38,7 @@ type ErrHandle = func(x *X, err error)
 var allowedMethods = []string{
 	http.MethodGet, http.MethodHead, http.MethodPost, http.MethodPut,
 	http.MethodPatch, http.MethodDelete, http.MethodConnect,
-	http.MethodOptions, http.MethodTrace}
+	http.MethodOptions, http.MethodTrace, "ANY"}
 
 func NewRouter() Router {
 	r := &route{}
@@ -63,6 +63,7 @@ type Router interface {
 
 	Set(url string, method string, handlers ...any) Router
 	Get(url string, handlers ...any) Router
+	Any(url string, handlers ...any) Router
 	Post(url string, handlers ...any) Router
 	Head(url string, handlers ...any) Router
 	Put(url string, handlers ...any) Router
@@ -138,8 +139,14 @@ func (r *route) String() string {
 
 func (r *route) match(u string, m string, x *X) *route {
 	if u == "/" || u == "" {
-		if len(r.handlers[m]) > 0 {
+		if len(r.handlers[m]) > 0 || len(r.handlers["ANY"]) > 0 {
 			return r
+		}
+		if r.wildcard != nil {
+			if len(r.wildcard.handlers[m]) > 0 || len(r.wildcard.handlers["ANY"]) > 0 {
+				x.SetParam(r.wildcard.fragment[1:], "")
+				return r.wildcard
+			}
 		}
 		return nil
 	}
@@ -169,7 +176,7 @@ func (r *route) match(u string, m string, x *X) *route {
 		}
 	}
 	if r.wildcard != nil {
-		if len(r.wildcard.handlers[m]) > 0 {
+		if len(r.wildcard.handlers[m]) > 0 || len(r.wildcard.handlers["ANY"]) > 0 {
 			x.SetParam(r.wildcard.fragment[1:], u)
 			return r.wildcard
 		}
@@ -186,6 +193,9 @@ func (r *route) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 
 	if subR := r.match(req.URL.Path[1:], req.Method, x); subR != nil {
 		x.fcs = subR.handlers[req.Method]
+		if len(x.fcs) == 0 {
+			x.fcs = subR.handlers["ANY"]
+		}
 		err := x.Next()
 		if err != nil {
 			subR.fire_err(x, err)
@@ -259,7 +269,6 @@ func (r *route) get_subrouter(url string) *route {
 
 func (r *route) Set(prefix string, method string, handlers ...any) Router {
 	method = strings.ToUpper(method)
-	logv.Assert(prefix != "", "path must begin with '/'")
 	logv.Assert(utils.InList(method, allowedMethods), fmt.Sprintf("not support HTTP method: %v", method))
 	logv.Assert(len(handlers) > 0, "there must be at least one handler")
 
@@ -295,6 +304,9 @@ func (r *route) Set(prefix string, method string, handlers ...any) Router {
 	fcs = append(fcs, handlers...)
 	tmp.handlers[method] = fcs
 	return tmp
+}
+func (r *route) Any(url string, handlers ...any) Router {
+	return r.Set(url, "ANY", handlers...)
 }
 func (r *route) Get(url string, handlers ...any) Router {
 	return r.Set(url, http.MethodGet, handlers...)
