@@ -1,9 +1,7 @@
-//
 // init.go
 // Copyright (C) 2024 veypi <i@veypi.com>
 // 2024-10-09 15:19
 // Distributed under terms of the MIT license.
-//
 package ts
 
 import (
@@ -71,9 +69,12 @@ func gen_api() error {
 	if err != nil {
 		return err
 	}
-	apiF := tpls.OpenAbsFile(*tsDir, "webapi.ts")
-	defer apiF.Close()
-	return tpls.T("ts", "webapi").Execute(apiF, tpls.Params())
+	if !utils.FileExists(utils.PathJoin(*tsDir, "webapi.ts")) {
+		apiF := tpls.OpenAbsFile(*tsDir, "webapi.ts")
+		defer apiF.Close()
+		return tpls.T("ts", "webapi").Execute(apiF, tpls.Params())
+	}
+	return nil
 }
 
 func gen_from_dir(dir string, fragments ...string) error {

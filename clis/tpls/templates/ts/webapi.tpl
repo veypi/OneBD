@@ -22,14 +22,45 @@ const proxy = axios.create({
   },
 });
 
-
+export const token = {
+  value: '',
+  update: () => {
+    return new Promise<string>((resolve) => { resolve(token.value) })
+  },
+  set_updator: (fn: () => Promise<string>) => {
+    let locked = false
+    token.update = () => {
+      if (locked) {
+        return new Promise<void>((resolve) => {
+          setTimeout(() => {
+            resolve();
+          }, 100)
+        }).then(() => {
+          return token.update()
+        })
+      }
+      locked = true
+      return new Promise<string>((resolve, reject) => {
+        if (token.value) {
+          locked = false
+          resolve(token.value)
+          return
+        }
+        fn().then((e) => {
+          token.value = e
+          resolve(e)
+        }).catch(() => {
+          reject()
+        }).finally(() => { locked = false })
+      })
+    }
+  }
+}
 // 请求拦截
 const beforeRequest = (config: any) => {
-  // 设置 token
-  const token = util.getToken()
   config.retryTimes = 3
   // NOTE  添加自定义头部
-  token && (config.headers.Authorization = `Bearer ${token}`)
+  token.value && (config.headers.Authorization = `Bearer ${token.value}`)
   // config.headers['auth_token'] = ''
   return config
 }
@@ -64,12 +95,23 @@ const responseFailed = (error: AxiosError) => {
     needRetry = false
   } else if (response?.status == 401) {
     needRetry = false
-    if (data.code === 40103) {
+    // AuthNotFound     = New(40100, "auth not found")
+    // AuthExpired      = New(40102, "auth expired")
+    if (data.code === 40102 || data.code === 40100) {
+      token.value = ''
+      return token.update().then(() => {
+        return requestRetry(0, response!)
+      })
     }
   }
   if (!needRetry) {
     return Promise.reject(data || response)
   };
+  return requestRetry(1000, response!)
+}
+
+const requestRetry = (delay = 0, response: AxiosResponse) => {
+  const config = response?.config
   // @ts-ignore
   const { __retryCount = 0, retryDelay = 1000, retryTimes } = config;
   // 在请求对象上设置重试次数
@@ -79,17 +121,19 @@ const responseFailed = (error: AxiosError) => {
   if (__retryCount >= retryTimes) {
     return Promise.reject(response?.data || response?.headers.error)
   }
+  if (delay <= 0) {
+    return proxy.request(config as any)
+  }
   // 延时处理
-  const delay = new Promise<void>((resolve) => {
+  return new Promise<void>((resolve) => {
     setTimeout(() => {
       resolve();
-    }, retryDelay);
-  });
-  // 重新发起请求
-  return delay.then(function() {
-    return proxy.request(config as any);
-  });
+    }, delay)
+  }).then(() => {
+    return proxy.request(config as any)
+  })
 }
+
 
 proxy.interceptors.response.use(responseSuccess, responseFailed)
 
