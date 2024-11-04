@@ -109,7 +109,7 @@ func (x *X) Parse(obj any) error {
 			}
 			continue
 		default:
-			return fmt.Errorf("%w: unknown parse method %s", ErrParse)
+			return fmt.Errorf("%w: unknown parse method %s", ErrParse, method)
 		}
 		ft := field.Type
 		isPointer := false
@@ -208,7 +208,11 @@ func (x *X) SetParam(k string, v string) {
 func (x *X) Next(args ...any) (err error) {
 	defer func() {
 		if e := recover(); e != nil {
-			err = fmt.Errorf("%s: %w", ErrCrash, e)
+			if e2, ok := e.(error); ok {
+				err = fmt.Errorf("%s: %w", ErrCrash, e2)
+			} else {
+				err = fmt.Errorf("%s: %v", ErrCrash, e)
+			}
 			debug.PrintStack()
 		}
 	}()
@@ -219,22 +223,24 @@ func (x *X) Next(args ...any) (err error) {
 	x.fid++
 	switch fc := fc.(type) {
 	case fc0:
-		err = fc(x)
+		fc(x)
 	case fc1:
-		err = fc(x, x.Request)
+		err = fc(x)
 	case fc2:
-		fc(x, x.Request)
+		err = fc(x, x.Request)
 	case fc3:
+		fc(x, x.Request)
+	case fc4:
 		var arg any
 		arg, err = fc(x)
 		args = append(args, arg)
-	case fc4:
+	case fc5:
 		if len(args) == 0 {
 			err = fc(x, nil)
 		} else {
 			err = fc(x, args[0])
 		}
-	case fc5:
+	case fc6:
 		err = fc(x, args...)
 	}
 	if err != nil {

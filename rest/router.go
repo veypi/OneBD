@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"mime"
 	"net/http"
 	"os"
@@ -22,15 +23,17 @@ import (
 	"github.com/veypi/utils/logv"
 )
 
-type fc0 = func(*X) error
-type fc1 = func(http.ResponseWriter, *http.Request) error
-type fc2 = func(http.ResponseWriter, *http.Request)
-type fc3 = func(*X) (any, error)
-type fc4 = func(*X, any) error
-type fc5 = func(*X, ...any) error
+type fc0 = func(*X)
+type fc1 = func(*X) error
+type fc2 = func(http.ResponseWriter, *http.Request) error
+type fc3 = func(http.ResponseWriter, *http.Request)
+
+type fc4 = func(*X) (any, error)
+type fc5 = func(*X, any) error
+type fc6 = func(*X, ...any) error
 
 type ApiHandler interface {
-	fc0 | fc1 | fc2 | fc3 | fc4 | fc5
+	fc0 | fc1 | fc2 | fc3 | fc4 | fc5 | fc6
 }
 
 type ErrHandle = func(x *X, err error)
@@ -74,7 +77,7 @@ type Router interface {
 	SetErrFunc(fc ErrHandle)
 	Static(prefix string, directory string)
 	EmbedFile(prefix string, f []byte)
-	EmbedDir(prefix string, fs embed.FS, fsPrefix string)
+	EmbedDir(prefix string, fs embed.FS, fsPrefix string, file404 string)
 }
 
 type route struct {
@@ -296,9 +299,9 @@ func (r *route) Set(prefix string, method string, handlers ...any) Router {
 	}
 	for _, fc := range handlers {
 		switch fc := fc.(type) {
-		case fc0, fc1, fc2, fc3, fc4, fc5:
+		case fc0, fc1, fc2, fc3, fc4, fc5, fc6:
 		default:
-			logv.Fatal().Msgf("handler type not support: %T", fc)
+			logv.WithNoCaller.Fatal().Caller(1).Msgf("handler type not support: %T", fc)
 		}
 	}
 	fcs = append(fcs, handlers...)
@@ -330,7 +333,7 @@ func (r *route) Delete(url string, handlers ...any) Router {
 func (r *route) Use(middleware ...any) {
 	for _, m := range middleware {
 		switch m := m.(type) {
-		case fc0, fc1, fc2, fc3, fc4, fc5:
+		case fc0, fc1, fc2, fc3, fc4, fc5, fc6:
 			r.use(m)
 		default:
 			panic(fmt.Sprintf("not support middleware %T", m))
@@ -415,7 +418,24 @@ func (r *route) EmbedFile(prefix string, f []byte) {
 	})
 }
 
-func (r *route) EmbedDir(prefix string, fs embed.FS, fsPrefix string) {
+func getf(name string, dir embed.FS) (fs.File, fs.FileInfo, error) {
+	f, err := dir.Open(name)
+	if err != nil {
+		return nil, nil, err
+	}
+	info, err := f.Stat()
+	if err != nil {
+		f.Close()
+		return nil, nil, err
+	}
+	if info.IsDir() {
+		f.Close()
+		return nil, nil, fs.ErrNotExist
+	}
+	return f, info, nil
+}
+
+func (r *route) EmbedDir(prefix string, dir embed.FS, fsPrefix string, file404 string) {
 	if strings.Contains(prefix, "*") {
 		panic("static prefix should not contain *")
 	}
@@ -423,30 +443,26 @@ func (r *route) EmbedDir(prefix string, fs embed.FS, fsPrefix string) {
 		prefix += "/"
 	}
 	prefix += "*path"
-	r.Set(prefix, http.MethodGet, func(w http.ResponseWriter, req *http.Request, x *X) {
-		name := fsPrefix + x.Params.GetStr("path")
-		f, err := fs.Open(name)
+	r.Set(prefix, http.MethodGet, func(x *X) {
+		name := strings.TrimSuffix(fsPrefix+x.Params.GetStr("path"), "/")
+		f, info, err := getf(name, dir)
+		if file404 != "" && err != nil {
+			// handler name/+ ./404.html ./index.html
+			if file404[0] == '.' {
+				f, info, err = getf(name+file404[1:], dir)
+			} else {
+				f, info, err = getf(file404, dir)
+			}
+		}
 		if err != nil {
-			logv.Info().Msgf("serve file failed: %s", err.Error())
-			w.WriteHeader(http.StatusNotFound)
+			x.WriteHeader(http.StatusNotFound)
+			logv.Debug().Err(err).Send()
 			return
 		}
 		defer f.Close()
-		info, err := f.Stat()
-		if err != nil {
-			logv.Info().Msgf("serve file failed: %s", err.Error())
-			w.WriteHeader(http.StatusNotFound)
-			return
-		}
-		if info.IsDir() {
-			// TODO:: dir list
-			logv.Info().Msgf("serve file failed: %s", err.Error())
-			w.WriteHeader(http.StatusNotFound)
-			return
-		}
-		w.Header().Set("Content-Type", mime.TypeByExtension(path.Ext(info.Name())))
-		http.ServeContent(w, req, info.Name(), info.ModTime(), f.(io.ReadSeeker))
-	}, http.MethodGet)
+		x.Header().Set("Content-Type", mime.TypeByExtension(path.Ext(info.Name())))
+		http.ServeContent(x, x.Request, info.Name(), info.ModTime(), f.(io.ReadSeeker))
+	})
 }
 
 func (r *route) SubRouter(prefix string) Router {
