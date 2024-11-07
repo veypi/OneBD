@@ -6,7 +6,7 @@
 #
 
 
-cache=~/test/app/
+cache=~/cache/app/
 
 cmd=go run clis.go -l debug --dir ${cache} -y --repo testapp
 

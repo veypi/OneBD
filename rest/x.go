@@ -205,6 +205,10 @@ func (x *X) SetParam(k string, v string) {
 	x.Params = append(x.Params, [2]string{k, v})
 }
 
+func (x *X) Stop() {
+	x.fid = 99999999
+}
+
 func (x *X) Next(args ...any) (err error) {
 	defer func() {
 		if e := recover(); e != nil {

@@ -13,6 +13,6 @@ func JsonResponse(x *rest.X, data any) error {
 	return x.JSON(map[string]any{"code": 0, "data": data})
 }
 
-func JsonErrorResponse(x *rest.X, err error, code int) {
+func JsonErrorResponse(x *rest.X, err error) {
 	x.JSON(map[string]any{"code": 1, "err": err.Error()})
 }

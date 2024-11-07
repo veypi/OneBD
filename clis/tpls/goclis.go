@@ -31,8 +31,8 @@ func GoInit(name string) {
 
 func GoModtidy() {
 	// TODO: test code
-	// run("bash", "-c", "echo '\nreplace github.com/veypi/OneBD => ../../workspace/OneBD/\n' >> go.mod")
-	// run("bash", "-c", "echo '\nreplace github.com/veypi/utils => ../../workspace/OceanCurrent/utils/\n' >> go.mod")
+	run("bash", "-c", "echo '\nreplace github.com/veypi/OneBD => ../../workspace/OneBD/\n' >> go.mod")
+	run("bash", "-c", "echo '\nreplace github.com/veypi/utils => ../../workspace/utils/\n' >> go.mod")
 	_, err := run("go", "mod", "tidy")
 	if err != nil {
 		logv.Warn().Msgf("go mod tidy failed: %v", err)
