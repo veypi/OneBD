@@ -77,6 +77,7 @@ func (a *Ast) Dump(fPath string) error {
 	if err := printer.Fprint(f, a.fset, a.File); err != nil {
 		return fmt.Errorf("Error writing to file: %v", err)
 	}
+	GoFmt(fPath)
 	return nil
 }
 
