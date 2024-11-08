@@ -19,14 +19,6 @@ import (
 func main() {
 	// logv.DisableCaller()
 	cmds.Parse()
-	cmds.Main.Before = func() error {
-		l, err := logv.ParseLevel(*cmds.LogLevel)
-		if err != nil {
-			return err
-		}
-		logv.SetLevel(l)
-		return nil
-	}
 	err := cmds.Main.Run()
 	if err != nil {
 		logv.Warn().Msg(err.Error())
