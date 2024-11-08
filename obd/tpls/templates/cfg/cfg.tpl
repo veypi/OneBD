@@ -27,7 +27,7 @@ var configFile = CMD.String("f", "./dev.yaml", "the config file")
 
 
 func init() {
-	CMD.StringVar(&Config.Host, "h", "0.0.0.0", "host")
+	CMD.StringVar(&Config.Host, "host", "0.0.0.0", "host")
 	CMD.IntVar(&Config.Port, "p", 4000, "port")
 	CMD.StringVar(&Config.LoggerLevel, "l", "info", "log level")
 	CMD.StringVar(&Config.DSN, "dsn", "root:123456@tcp(127.0.0.1:3306)/test?charset=utf8&parseTime=True&loc=Local", "data source name")

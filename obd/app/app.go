@@ -42,6 +42,18 @@ func build_app() error {
 	defer modelF.Close()
 	logv.AssertError(tpls.T("models", "init").Execute(modelF, tpls.Params()))
 
+	devyaml := tpls.OpenFile("cfg", "dev.yaml")
+	defer devyaml.Close()
+	logv.AssertError(tpls.T("cfg", "dev.yaml").Execute(devyaml, tpls.Params()))
+
+	gitignore := tpls.OpenFile(".gitignore")
+	defer gitignore.Close()
+	logv.AssertError(tpls.T("gitignore").Execute(gitignore, tpls.Params()))
+
+	makefile := tpls.OpenFile("Makefile")
+	defer makefile.Close()
+	logv.AssertError(tpls.T("Makefile").Execute(makefile, tpls.Params()))
+
 	tpls.GoFmt(".")
 	tpls.GoInit(*cmds.RepoName)
 	tpls.GoModtidy()

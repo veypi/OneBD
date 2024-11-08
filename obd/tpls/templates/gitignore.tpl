@@ -1,2 +1,1 @@
-.tmp
-dev.yaml
+cfg/dev.yaml
