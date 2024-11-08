@@ -205,6 +205,7 @@ func gen_from_gen_file(fname string, fragments ...string) error {
 			return err
 		}
 	}
+	ownerObj := utils.SnakeToCamel(fragments[len(fragments)-1])
 	for _, obj := range fast.GetAllStructs() {
 		pathTags := make([]string, 0, 8)
 		for _, p := range fragments {
@@ -217,8 +218,10 @@ func gen_from_gen_file(fname string, fragments ...string) error {
 		objFunc := obj.Name
 		objName := obj.Name
 		method := "Get"
-		ownerObj := utils.SnakeToCamel(fragments[len(fragments)-1])
 		isListReponse := false
+		// ts api 函数参数
+		args := make([]string, 0, 5)
+		resp := make([]string, 0, 4)
 		if temp := objReg.FindStringSubmatch(obj.Name); len(temp) == 3 {
 			method = temp[2]
 			if method == "List" {
@@ -228,6 +231,7 @@ func gen_from_gen_file(fname string, fragments ...string) error {
 			objName = temp[1]
 			if temp[1] != ownerObj {
 				// 2级资源
+				args = append(args, fmt.Sprintf("%s_id: string", utils.CamelToSnake(ownerObj)))
 				pathTags = append(pathTags, fmt.Sprintf("${%s_id}", utils.CamelToSnake(ownerObj)), utils.CamelToSnake(temp[1]))
 			} else {
 				objFunc = strings.Replace(objFunc, ownerObj, "", 1)
@@ -235,11 +239,13 @@ func gen_from_gen_file(fname string, fragments ...string) error {
 		} else {
 			pathTags = append(pathTags, obj.Name)
 		}
-		args := make([]string, 0, 5)
-		resp := make([]string, 0, 4)
 		if fields := get_ts_fields_from_struct(obj.Fields, "path"); len(fields) > 0 {
 			for _, f := range fields {
-				args = append(args, fmt.Sprintf("%s: %s", f[0], f[1]))
+				argsf := fmt.Sprintf("%s: %s", f[0], f[1])
+				if !utils.InList(argsf, args) {
+					args = append(args, argsf)
+				}
+				// args = append(args, fmt.Sprintf("%s: %s", f[0], f[1]))
 				tmpf := fmt.Sprintf("${%s}", f[0])
 				if !utils.InList(tmpf, pathTags) {
 					pathTags = append(pathTags, tmpf)

@@ -169,6 +169,10 @@ func parseTag(field *ast.Field, Obj string, genAst *tpls.Ast) {
 				// 如果字段名是ID，若没有显性标注path别名，则自动将tag中的`parse:"path"`替换为`parse:"path@obj_id"`
 				tag = strings.ReplaceAll(tag, `parse:"path"`, fmt.Sprintf(`parse:"path@%s_id"`, utils.CamelToSnake(Obj)))
 			}
+			if method == "Get" || method == "List" {
+				// 如果请求是get，list，将json替换为query
+				tag = strings.ReplaceAll(tag, `parse:"json`, `parse:"query`)
+			}
 			genAst.AddStructWithFields(Obj+method,
 				&ast.Field{
 					Names: []*ast.Ident{{Name: field.Names[0].Name}},
