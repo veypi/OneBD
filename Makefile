@@ -6,6 +6,10 @@
 #
 
 
+install:
+	@cd ./obd
+	@go install
+
 # 查看版本
 version:
 	@awk -F '"' '/Version/ {print $$2;}' onebd.go

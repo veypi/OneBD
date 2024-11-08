@@ -15,7 +15,7 @@ import (
 	"text/template"
 	"time"
 
-	"github.com/veypi/OneBD/clis/cmds"
+	"github.com/veypi/OneBD/obd/cmds"
 	"github.com/veypi/utils"
 	"github.com/veypi/utils/logv"
 )

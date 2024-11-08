@@ -1,5 +1,5 @@
 //
-// clis.go
+// obd.go
 // Copyright (C) 2024 veypi <i@veypi.com>
 // 2024-08-12 14:24
 // Distributed under terms of the MIT license.
@@ -8,11 +8,11 @@
 package main
 
 import (
-	_ "github.com/veypi/OneBD/clis/api"
-	_ "github.com/veypi/OneBD/clis/app"
-	"github.com/veypi/OneBD/clis/cmds"
-	_ "github.com/veypi/OneBD/clis/model"
-	_ "github.com/veypi/OneBD/clis/ts"
+	_ "github.com/veypi/OneBD/obd/api"
+	_ "github.com/veypi/OneBD/obd/app"
+	"github.com/veypi/OneBD/obd/cmds"
+	_ "github.com/veypi/OneBD/obd/model"
+	_ "github.com/veypi/OneBD/obd/ts"
 	"github.com/veypi/utils/logv"
 )
 

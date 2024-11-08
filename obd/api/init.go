@@ -8,7 +8,7 @@
 package api
 
 import (
-	"github.com/veypi/OneBD/clis/cmds"
+	"github.com/veypi/OneBD/obd/cmds"
 	"regexp"
 )
 

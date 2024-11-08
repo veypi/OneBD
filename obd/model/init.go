@@ -10,7 +10,7 @@ package model
 import (
 	"regexp"
 
-	"github.com/veypi/OneBD/clis/cmds"
+	"github.com/veypi/OneBD/obd/cmds"
 )
 
 var (

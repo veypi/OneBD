@@ -13,8 +13,8 @@ import (
 	"go/token"
 	"strings"
 
-	"github.com/veypi/OneBD/clis/cmds"
-	"github.com/veypi/OneBD/clis/tpls"
+	"github.com/veypi/OneBD/obd/cmds"
+	"github.com/veypi/OneBD/obd/tpls"
 	"github.com/veypi/utils"
 	"github.com/veypi/utils/logv"
 )
