@@ -9,6 +9,8 @@ package crud
 
 import (
 	"fmt"
+	"strings"
+
 	"github.com/veypi/OneBD/rest"
 	"github.com/veypi/utils"
 	"github.com/veypi/utils/logv"
@@ -85,7 +87,7 @@ func handleListReq(h *StructHandler, s *StructInfo, idCheck []string) func(*rest
 	sqlRawOrigin := fmt.Sprintf("SELECT %s FROM %s", feilds[1:], s.TableName)
 	idCon := make([]string, len(idCheck))
 	for i := range idCheck {
-		idCon[i] = idCheck[i][1:]
+		idCon[i] = idCheck[i][1:] + " = ?"
 	}
 	plen := len(idCheck)
 	return func(x *rest.X, argsBody any) (any, error) {
@@ -105,17 +107,39 @@ func handleListReq(h *StructHandler, s *StructInfo, idCheck []string) func(*rest
 		for _, f := range h.Fields {
 			if v, ok := args[f.Key]; ok {
 				sqlArgs = append(sqlArgs, v)
-				sqlCon = append(sqlCon, f.Key)
+				fsql := f.Key + " = ?"
+				fk := f.Key
+				if f.Alias != "" {
+					fk = f.Alias
+				}
+				if optv, ok := args[fk+"_opt"].(string); ok {
+					optv = strings.ToLower(optv)
+					switch optv {
+					case "like":
+						fsql = fmt.Sprintf("%s LIKE ?", f.Key)
+					case "in":
+						fsql = fmt.Sprintf("%s IN (?)", f.Key)
+					case "gt":
+						fsql = fmt.Sprintf("%s > ?", f.Key)
+					case "lt":
+						fsql = fmt.Sprintf("%s < ?", f.Key)
+					case "between":
+						fsql = fmt.Sprintf("%s BETWEEN ? AND ?", f.Key)
+						sqlArgs = append(sqlArgs, args[fk+"_opt_max"])
+					}
+				}
+				sqlCon = append(sqlCon, fsql)
 			}
 		}
 		sqlRaw := sqlRawOrigin
 		if len(sqlCon) > 0 {
 			// logv.Warn().Msgf("%v %s", strings.Join(sqlCon, "|"), sqlRaw)
-			sqlRaw = fmt.Sprintf("%s WHERE %s = ? ", sqlRaw, sqlCon[0])
+			sqlRaw = fmt.Sprintf("%s WHERE %s ", sqlRaw, sqlCon[0])
 			for _, con := range sqlCon[1:] {
-				sqlRaw += fmt.Sprintf("AND %s = ? ", con)
+				sqlRaw += fmt.Sprintf(" AND %s ", con)
 			}
 		}
+		logv.Warn().Msgf("\n|%s|\n%s", sqlRaw, args)
 		data := make([]map[string]interface{}, 0, 10)
 		err := db.Debug().Raw(sqlRaw, sqlArgs...).Find(&data).Error
 		if err != nil {
