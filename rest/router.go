@@ -61,6 +61,7 @@ func NewRouter() Router {
 type Router interface {
 	String() string
 	Print()
+	GetParamsList() []string
 	ServeHTTP(http.ResponseWriter, *http.Request)
 	SubRouter(prefix string) Router
 
@@ -75,7 +76,7 @@ type Router interface {
 
 	Use(middleware ...any)
 	SetErrFunc(fc ErrHandle)
-	Static(prefix string, directory string)
+	Static(prefix string, directory string, file404 string)
 	EmbedFile(prefix string, f []byte)
 	EmbedDir(prefix string, fs embed.FS, fsPrefix string, file404 string)
 }
@@ -130,6 +131,17 @@ func (r *route) tree() []string {
 	}
 	res = fc(res, r.colon)
 	res = fc(res, r.wildcard)
+	return res
+}
+
+func (r *route) GetParamsList() []string {
+	var res []string
+	for r != nil {
+		if r.colon != nil || r.wildcard != nil {
+			res = append(res, r.colon.fragment)
+		}
+		r = r.parent
+	}
 	return res
 }
 
@@ -242,12 +254,18 @@ func (r *route) get_subrouter(url string) *route {
 				logv.Assert(false, "url path can not has //")
 			} else if next.fragment[0] == '*' {
 				if last.wildcard != nil {
+					if last.wildcard.fragment != next.fragment {
+						logv.Warn().Msgf("variable path conflict: %s %s", last.colon.String(), next.String())
+					}
 					return last.wildcard
 				}
 				last.wildcard = next
 				return next
 			} else if next.fragment[0] == ':' {
 				if last.colon != nil {
+					if last.colon.fragment != next.fragment {
+						logv.Warn().Msgf("variable path conflict: %s %s", last.colon.String(), next.String())
+					}
 					last = last.colon
 				} else {
 					last.colon = next
@@ -284,7 +302,17 @@ func (r *route) Set(prefix string, method string, handlers ...any) Router {
 	if tmp.handlers == nil {
 		tmp.handlers = make(map[string][]any)
 	}
-	logv.Assert(tmp.handlers[method] == nil, "url defined duplicate")
+	for _, fc := range handlers {
+		switch fc := fc.(type) {
+		case fc0, fc1, fc2, fc3, fc4, fc5, fc6:
+		default:
+			logv.WithNoCaller.Fatal().Caller(1).Msgf("handler type not support: %T", fc)
+		}
+	}
+	if tmp.handlers[method] != nil {
+		tmp.handlers[method] = append(tmp.handlers[method], handlers...)
+		return tmp
+	}
 	fcs := make([]any, 0, 10)
 	var tmp_route = r
 	for {
@@ -295,13 +323,6 @@ func (r *route) Set(prefix string, method string, handlers ...any) Router {
 			tmp_route = tmp_route.parent
 		} else {
 			break
-		}
-	}
-	for _, fc := range handlers {
-		switch fc := fc.(type) {
-		case fc0, fc1, fc2, fc3, fc4, fc5, fc6:
-		default:
-			logv.WithNoCaller.Fatal().Caller(1).Msgf("handler type not support: %T", fc)
 		}
 	}
 	fcs = append(fcs, handlers...)
@@ -356,10 +377,11 @@ func (r *route) use(m any) {
 	}
 }
 
-func (r *route) Static(prefix string, directory string) {
+func (r *route) Static(prefix string, directory string, file404 string) {
 	dir, err := os.Stat(directory)
 	if err != nil {
-		panic(err)
+		logv.Panic().Err(err).Send()
+		return
 	}
 	if !dir.IsDir() {
 		r.Set(prefix, http.MethodGet, func(w http.ResponseWriter, req *http.Request) {
@@ -385,27 +407,26 @@ func (r *route) Static(prefix string, directory string) {
 	}
 	prefix += "*path"
 	var fs http.FileSystem = http.Dir(directory)
-	r.Set(prefix, http.MethodGet, func(w http.ResponseWriter, req *http.Request, x *X) {
-		name := x.Params.GetStr("path")
-		f, err := fs.Open(name)
+	r.Set(prefix, http.MethodGet, func(x *X) {
+		name := strings.TrimSuffix(x.Params.GetStr("path"), "/")
+		f, info, err := handleDirOpen(fs.Open(name))
+		if file404 != "" && err != nil {
+			// handler name/+ ./404.html ./index.html
+			if file404[0] == '.' {
+				f, info, err = handleDirOpen(fs.Open(name + file404[1:]))
+			} else {
+				f, info, err = handleDirOpen(fs.Open(file404))
+			}
+		}
 		if err != nil {
-			w.WriteHeader(http.StatusNotFound)
+			x.WriteHeader(http.StatusNotFound)
+			logv.Debug().Err(err).Send()
 			return
 		}
 		defer f.Close()
-		info, err := f.Stat()
-		if err != nil {
-			w.WriteHeader(http.StatusNotFound)
-			return
-		}
-		if info.IsDir() {
-			// TODO:: dir list
-			w.WriteHeader(http.StatusNotFound)
-			return
-		}
-		w.Header().Set("Content-Type", mime.TypeByExtension(path.Ext(info.Name())))
-		http.ServeContent(w, req, info.Name(), info.ModTime(), f)
-	}, http.MethodGet)
+		x.Header().Set("Content-Type", mime.TypeByExtension(path.Ext(info.Name())))
+		http.ServeContent(x, x.Request, info.Name(), info.ModTime(), f.(io.ReadSeeker))
+	})
 }
 
 func (r *route) EmbedFile(prefix string, f []byte) {
@@ -418,8 +439,7 @@ func (r *route) EmbedFile(prefix string, f []byte) {
 	})
 }
 
-func getf(name string, dir embed.FS) (fs.File, fs.FileInfo, error) {
-	f, err := dir.Open(name)
+func handleDirOpen(f fs.File, err error) (fs.File, fs.FileInfo, error) {
 	if err != nil {
 		return nil, nil, err
 	}
@@ -443,15 +463,18 @@ func (r *route) EmbedDir(prefix string, dir embed.FS, fsPrefix string, file404 s
 		prefix += "/"
 	}
 	prefix += "*path"
+	if !strings.HasSuffix(fsPrefix, "/") {
+		fsPrefix += "/"
+	}
 	r.Set(prefix, http.MethodGet, func(x *X) {
 		name := strings.TrimSuffix(fsPrefix+x.Params.GetStr("path"), "/")
-		f, info, err := getf(name, dir)
+		f, info, err := handleDirOpen(dir.Open(name))
 		if file404 != "" && err != nil {
 			// handler name/+ ./404.html ./index.html
 			if file404[0] == '.' {
-				f, info, err = getf(name+file404[1:], dir)
+				f, info, err = handleDirOpen(dir.Open(name + file404[1:]))
 			} else {
-				f, info, err = getf(file404, dir)
+				f, info, err = handleDirOpen(dir.Open(fsPrefix + file404))
 			}
 		}
 		if err != nil {

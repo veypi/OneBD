@@ -209,6 +209,14 @@ func (x *X) Stop() {
 	x.fid = 99999999
 }
 
+func (x *X) Skip(counts ...uint) {
+	count := 1
+	if len(counts) > 0 {
+		count = int(counts[0])
+	}
+	x.fid += int(count)
+}
+
 func (x *X) Next(args ...any) (err error) {
 	defer func() {
 		if e := recover(); e != nil {
