@@ -14,7 +14,9 @@ type Err struct {
 }
 
 var (
-	ErrMissParam = NewErr("miss param: %s")
+	ErrMissArg = NewErr("miss arg: %s")
+	ErrParse   = NewErr("parse request data failed")
+	Err500     = NewErr("internal server error")
 )
 
 func NewErr(msg string) *Err {

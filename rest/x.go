@@ -218,6 +218,7 @@ func (x *X) Skip(counts ...uint) {
 }
 
 func (x *X) Next(args ...any) (err error) {
+	// args[0] vaild
 	defer func() {
 		if e := recover(); e != nil {
 			if e2, ok := e.(error); ok {
@@ -233,6 +234,10 @@ func (x *X) Next(args ...any) (err error) {
 	}
 	fc := x.fcs[x.fid]
 	x.fid++
+	var arg any
+	if len(args) > 0 {
+		arg = args[0]
+	}
 	switch fc := fc.(type) {
 	case fc0:
 		fc(x)
@@ -243,22 +248,16 @@ func (x *X) Next(args ...any) (err error) {
 	case fc3:
 		fc(x, x.Request)
 	case fc4:
-		var arg any
 		arg, err = fc(x)
-		args = append(args, arg)
 	case fc5:
-		if len(args) == 0 {
-			err = fc(x, nil)
-		} else {
-			err = fc(x, args[0])
-		}
+		err = fc(x, arg)
 	case fc6:
-		err = fc(x, args...)
+		arg, err = fc(x, arg)
 	}
 	if err != nil {
 		return err
 	}
-	return x.Next(args...)
+	return x.Next(arg)
 }
 
 func (x *X) Write(p []byte) (n int, err error) {

@@ -30,7 +30,7 @@ type fc3 = func(http.ResponseWriter, *http.Request)
 
 type fc4 = func(*X) (any, error)
 type fc5 = func(*X, any) error
-type fc6 = func(*X, ...any) error
+type fc6 = func(*X, any) (any, error)
 
 type ApiHandler interface {
 	fc0 | fc1 | fc2 | fc3 | fc4 | fc5 | fc6
@@ -121,7 +121,8 @@ func (r *route) tree() []string {
 			item += "\n    " + m
 			for _, h := range r.handlers[m] {
 				op := reflect.ValueOf(h).Pointer()
-				item += fmt.Sprintf(" %s", runtime.FuncForPC(op).Name())
+				fnName := strings.Split(runtime.FuncForPC(op).Name(), "/")
+				item += fmt.Sprintf(" %s", fnName[len(fnName)-1])
 			}
 		}
 		res = append(res, item)
@@ -303,6 +304,9 @@ func (r *route) Set(prefix string, method string, handlers ...any) Router {
 		tmp.handlers = make(map[string][]any)
 	}
 	for _, fc := range handlers {
+		if reflect.ValueOf(fc).IsNil() {
+			logv.WithNoCaller.Fatal().Caller(1).Msgf("set nil handler for %s/%s: %T", r.String(), prefix, fc)
+		}
 		switch fc := fc.(type) {
 		case fc0, fc1, fc2, fc3, fc4, fc5, fc6:
 		default:
