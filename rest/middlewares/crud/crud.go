@@ -8,6 +8,7 @@
 package crud
 
 import (
+	"encoding/json"
 	"fmt"
 	"reflect"
 	"strings"
@@ -43,7 +44,9 @@ func crud(r rest.Router, objs ...*StructInfo) {
 			case "Patch":
 				fn = handlePatchReq(h, t, idcheck)
 			case "Put":
+				fn = handlePutReq(h, t, idcheck)
 			case "Delete":
+				fn = handleDelReq(h, t, idcheck)
 			default:
 				logv.Debug().Msgf("ignore custom handle %s", h.String())
 				continue
@@ -55,7 +58,7 @@ func crud(r rest.Router, objs ...*StructInfo) {
 	}
 }
 
-func handleGetReq(h *StructHandler, s *StructInfo, idCheck []string) func(x *rest.X) (any, error) {
+func handleGetReq(_ *StructHandler, s *StructInfo, idCheck []string) func(x *rest.X) (any, error) {
 	feilds := ""
 	for _, f := range s.Fields {
 		feilds += "," + f.Key
@@ -74,7 +77,7 @@ func handleGetReq(h *StructHandler, s *StructInfo, idCheck []string) func(x *res
 		for i := range plen {
 			ids[i] = x.Params[i][1]
 		}
-		err := db.Debug().Raw(sqlRaw, ids...).First(&data).Error
+		err := db.Raw(sqlRaw, ids...).First(&data).Error
 		if err != nil {
 			return nil, err
 		}
@@ -144,7 +147,7 @@ func handleListReq(h *StructHandler, s *StructInfo, idCheck []string) func(*rest
 		}
 		logv.Warn().Msgf("\n|%s|\n%s", sqlRaw, args)
 		data := make([]map[string]interface{}, 0, 10)
-		err := db.Debug().Raw(sqlRaw, sqlArgs...).Find(&data).Error
+		err := db.Raw(sqlRaw, sqlArgs...).Find(&data).Error
 		if err != nil {
 			return nil, err
 		}
@@ -184,7 +187,7 @@ func handlePostReq(h *StructHandler, s *StructInfo, idCheck []string) func(*rest
 			}
 		}
 		logv.Warn().Msgf("\n|%T|\n%s", data, createdMap)
-		err := db.Debug().Create(data).Error
+		err := db.Create(data).Error
 		if err != nil {
 			return nil, err
 		}
@@ -220,8 +223,92 @@ func handlePatchReq(h *StructHandler, s *StructInfo, idCheck []string) func(*res
 			}
 		}
 		if len(updatedMap) != 0 {
-			err = db.Debug().Model(data).Updates(updatedMap).Error
+			err = db.Model(data).Updates(updatedMap).Error
 		}
 		return data, err
+	}
+}
+
+// 批量更新或创建
+func handlePutReq(_ *StructHandler, s *StructInfo, idCheck []string) func(*rest.X) (any, error) {
+	sqlRaw := ""
+	for _, idc := range idCheck {
+		sqlRaw += fmt.Sprintf("AND %s = ? ", idc[1:])
+	}
+	if sqlRaw == "" {
+		sqlRaw = "id = ?"
+	} else {
+		sqlRaw = sqlRaw[4:] + " AND id = ?"
+	}
+	return func(x *rest.X) (any, error) {
+		items := make([]map[string]interface{}, 0, 4)
+		err := json.NewDecoder(x.Request.Body).Decode(&items)
+		if err != nil {
+			return nil, fmt.Errorf("%w: %v", ErrParse, err)
+		}
+		ids := make([]any, len(idCheck))
+		for i := range len(idCheck) {
+			ids[i] = x.Params[i][1]
+		}
+		// created := make([]any, 0, 4)
+		sliceType := reflect.SliceOf(s.v.Type())
+		// 创建切片对象
+		created := reflect.MakeSlice(sliceType, 0, 4)
+
+		updated := make([]map[string]any, 0, 4)
+		for _, item := range items {
+			if _, ok := item["id"]; ok {
+				updated = append(updated, item)
+			} else {
+				for i := range len(idCheck) {
+					item[idCheck[i][1:]] = x.Params[i][1]
+				}
+				data := reflect.New(s.v.Type())
+				dataElem := data.Elem()
+				for k, v := range item {
+					fv := dataElem.FieldByName(utils.SnakeToCamel(k))
+					if fv.IsValid() {
+						if fv.CanSet() {
+							fv.Set(reflect.ValueOf(v))
+						}
+					}
+				}
+				created = reflect.Append(created, dataElem)
+			}
+		}
+		data := reflect.New(s.v.Type()).Elem().Interface()
+		err = db.Transaction(func(tx *gorm.DB) error {
+			if created.Len() > 0 {
+				err := tx.Create(created.Interface()).Error
+				if err != nil {
+					return err
+				}
+			}
+			for _, item := range updated {
+				err := tx.Model(data).Where(sqlRaw, append(ids, item["id"])...).Updates(item).Error
+				if err != nil {
+					return err
+				}
+			}
+			return nil
+		})
+		return "ok", err
+	}
+}
+
+func handleDelReq(_ *StructHandler, s *StructInfo, idCheck []string) func(x *rest.X) (any, error) {
+	sqlRaw := "id = ?"
+	for _, idc := range idCheck {
+		sqlRaw = fmt.Sprintf("%s AND %s = ?", sqlRaw, idc[1:])
+	}
+	plen := len(idCheck) + 1
+	return func(x *rest.X) (any, error) {
+		ids := make([]any, plen)
+		for i := range plen {
+			ids[i] = x.Params[i][1]
+		}
+		data := reflect.New(s.v.Type()).Interface()
+		res := db.Where(sqlRaw, ids...).Delete(data)
+		return res.RowsAffected, res.Error
 	}
 }

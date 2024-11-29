@@ -102,15 +102,17 @@ func argParser(r rest.Router, objs ...*StructInfo) {
 				}
 				return args, nil
 			}
-			// haction := h.Action
-			// switch haction {
-			// case "List":
-			// case "Post":
-			// case "Patch":
-			// case "Put":
-			// case "Get", "Delete":
-			// default:
-			// }
+			haction := h.Action
+			switch haction {
+			case "List", "Post", "Patch":
+			case "Put", "Get", "Delete":
+				// get, delete无需解析参数，仅需要path参数
+				// put 由crud解析json slice数据包
+				continue
+			default:
+				// ignore custom actor
+				continue
+			}
 			r.Set(utils.CamelToSnake(t.Name)+"/"+h.Suffix, h.Method, fn)
 		}
 	}

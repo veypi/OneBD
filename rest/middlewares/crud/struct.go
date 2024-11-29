@@ -264,7 +264,7 @@ func (s *StructInfo) parseFields(t reflect.Type, obj_name string) {
 			if key == "id" {
 				// id 默认忽视，不存储在argParser中，由crud自动在get,patch,delete做sql条件查询处理
 				if methodsTag == "" {
-					continue
+					methodsTag = "get@path,delete@path"
 				}
 			} else {
 				if methodsTag == "" {
