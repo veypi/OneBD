@@ -9,6 +9,7 @@ package crud
 
 import (
 	"fmt"
+	"reflect"
 	"strings"
 
 	"github.com/veypi/OneBD/rest"
@@ -28,7 +29,7 @@ func SetDB(d *gorm.DB) {
 func crud(r rest.Router, objs ...*StructInfo) {
 	idcheck := r.GetParamsList()
 	for _, t := range objs {
-		logv.Warn().Msgf("|%s\n%s", t.TableName, t)
+		// logv.Warn().Msgf("|%s\n%s", t.TableName, t)
 		for _, h := range t.Handlers() {
 			haction := h.Action
 			var fn any
@@ -38,7 +39,9 @@ func crud(r rest.Router, objs ...*StructInfo) {
 			case "List":
 				fn = handleListReq(h, t, idcheck)
 			case "Post":
+				fn = handlePostReq(h, t, idcheck)
 			case "Patch":
+				fn = handlePatchReq(h, t, idcheck)
 			case "Put":
 			case "Delete":
 			default:
@@ -146,5 +149,79 @@ func handleListReq(h *StructHandler, s *StructInfo, idCheck []string) func(*rest
 			return nil, err
 		}
 		return &data, nil
+	}
+}
+
+func handlePostReq(h *StructHandler, s *StructInfo, idCheck []string) func(*rest.X, any) (any, error) {
+	plen := len(idCheck)
+	return func(x *rest.X, argsBody any) (any, error) {
+		args, ok := argsBody.(map[string]interface{})
+		if !ok {
+			logv.Warn().Msgf("args not map[string]interface{}: %T", argsBody)
+			return nil, Err500
+		}
+		if len(x.Params) != plen {
+			return nil, ErrMissArg.Fmt("path id")
+		}
+		createdMap := make(map[string]interface{})
+		for _, f := range h.Fields {
+			if v, ok := args[f.Key]; ok {
+				createdMap[f.Name] = v
+			}
+		}
+		// path arg 优先级更高 避免越权写入
+		for i := range plen {
+			createdMap[utils.SnakeToCamel(idCheck[i][1:])] = x.Params[i][1]
+		}
+		data := reflect.New(s.v.Type()).Interface()
+		dataElem := reflect.ValueOf(data).Elem()
+		for k, v := range createdMap {
+			fv := dataElem.FieldByName(k)
+			if fv.IsValid() {
+				if fv.CanSet() {
+					fv.Set(reflect.ValueOf(v))
+				}
+			}
+		}
+		logv.Warn().Msgf("\n|%T|\n%s", data, createdMap)
+		err := db.Debug().Create(data).Error
+		if err != nil {
+			return nil, err
+		}
+		return data, nil
+	}
+}
+
+func handlePatchReq(h *StructHandler, s *StructInfo, idCheck []string) func(*rest.X, any) (any, error) {
+	sqlRaw := "id = ?"
+	for _, idc := range idCheck {
+		sqlRaw = fmt.Sprintf("%s AND %s = ?", sqlRaw, idc[1:])
+	}
+	plen := len(idCheck) + 1
+	return func(x *rest.X, argsBody any) (any, error) {
+		args, ok := argsBody.(map[string]interface{})
+		if !ok {
+			logv.Warn().Msgf("args not map[string]interface{}: %T", argsBody)
+			return nil, Err500
+		}
+		ids := make([]any, plen)
+		for i := range plen {
+			ids[i] = x.Params[i][1]
+		}
+		data := reflect.New(s.v.Type()).Interface()
+		err := db.Where(sqlRaw, ids...).First(data).Error
+		if err != nil {
+			return nil, err
+		}
+		updatedMap := make(map[string]interface{})
+		for _, f := range h.Fields {
+			if v, ok := args[f.Key]; ok {
+				updatedMap[f.Name] = v
+			}
+		}
+		if len(updatedMap) != 0 {
+			err = db.Debug().Model(data).Updates(updatedMap).Error
+		}
+		return data, err
 	}
 }

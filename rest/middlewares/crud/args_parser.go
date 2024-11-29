@@ -17,7 +17,6 @@ import (
 
 	"github.com/veypi/OneBD/rest"
 	"github.com/veypi/utils"
-	"github.com/veypi/utils/logv"
 )
 
 func argParser(r rest.Router, objs ...*StructInfo) {
@@ -87,7 +86,7 @@ func argParser(r rest.Router, objs ...*StructInfo) {
 							args[f.Key] = tmps
 						}
 					}
-					logv.Debug().Msgf("field %v %s: %s, value: %v", f.HasStar, f.Src, fk, args[f.Key])
+					// logv.Debug().Msgf("field %v %s: %s, value: %v", f.HasStar, f.Src, fk, args[f.Key])
 					if fset {
 						// do not use srcAlias
 					} else if !f.HasStar {

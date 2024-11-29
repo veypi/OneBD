@@ -39,6 +39,8 @@ type StructHandler struct {
 
 // 存储不同请求方式里参数包含的字段
 type HandlerField struct {
+	// 原始参数名 CamelName
+	Name string
 	// 请求参数名,为空时为key
 	Alias string
 	// 存储字段名
@@ -217,6 +219,7 @@ func (s *StructInfo) parseHandlers() {
 				}
 			}
 			h.Fields = append(h.Fields, HandlerField{
+				Name:    f.Name,
 				Alias:   m.Alias,
 				Key:     f.Key,
 				Type:    f.Type,
@@ -254,7 +257,7 @@ func (s *StructInfo) parseFields(t reflect.Type, obj_name string) {
 			// default methodstag: post,
 			methodsTag := f.Tag.Get("methods")
 			parseTag := f.Tag.Get("parse")
-			if parseTag == "-" || methodsTag == "-" {
+			if methodsTag == "-" {
 				// ignore this field
 				continue
 			}
@@ -273,9 +276,6 @@ func (s *StructInfo) parseFields(t reflect.Type, obj_name string) {
 						methodsTag = "*list,post,*patch,put"
 					}
 				}
-				if parseTag == "" {
-					parseTag = "json"
-				}
 			}
 			resF := StructField{
 				Name:    f.Name,
@@ -284,6 +284,7 @@ func (s *StructInfo) parseFields(t reflect.Type, obj_name string) {
 				Key:     key,
 				Methods: nil,
 			}
+			resF.ParseParse(parseTag)
 			resF.ParseMethods(methodsTag, obj_name)
 			s.Fields = append(s.Fields, resF)
 		}
@@ -300,8 +301,8 @@ type StructField struct {
 	Tag     string
 	Methods []FieldMethod
 	// path header query form json
-	// Src      string
-	// SrcAlias string
+	Src      string
+	SrcAlias string
 }
 
 // *Action@Get@/urlsuffix@json@:argname
@@ -390,6 +391,12 @@ func (f *StructField) ParseMethods(tag string, obj_name string) {
 			fm.Suffix = m.Suffix
 			fm.Src = m.Src
 		}
+		if f.Src != "" {
+			fm.Src = f.Src
+		}
+		if f.SrcAlias != "" {
+			fm.Alias = f.SrcAlias
+		}
 		for _, subMatch := range matches[1:] {
 			if subMatch == "" {
 				continue
@@ -407,5 +414,23 @@ func (f *StructField) ParseMethods(tag string, obj_name string) {
 		}
 		fm.Suffix = strings.ReplaceAll(fm.Suffix, "#id", obj_name+"_id")
 		f.Methods = append(f.Methods, fm)
+	}
+}
+
+// parseTag:  src@alias, 优先级低，为此参数默认来源
+func (f *StructField) ParseParse(tag string) {
+	if tag == "" || tag == "-" {
+		return
+	}
+	tag = strings.Replace(tag, " ", "", -1)
+	f.Src = tag
+	tags := strings.Split(tag, "@")
+	f.Src = utils.CamelToSnake(tags[0])
+	if !utils.InList(f.Src, defaultSources) {
+		logv.Warn().Msgf("parse tag: %s not support, use default json", f.Src)
+		f.Src = "json"
+	}
+	if len(tags) > 1 {
+		f.SrcAlias = tags[1]
 	}
 }
