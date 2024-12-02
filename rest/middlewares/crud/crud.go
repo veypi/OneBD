@@ -19,41 +19,36 @@ import (
 	"gorm.io/gorm"
 )
 
-type StructConnect uint
-
 var db *gorm.DB
 
 func SetDB(d *gorm.DB) {
 	db = d
 }
 
-func crud(r rest.Router, objs ...*StructInfo) {
+func CRUD(r rest.Router, obj *StructInfo) {
 	idcheck := r.GetParamsList()
-	for _, t := range objs {
-		// logv.Warn().Msgf("|%s\n%s", t.TableName, t)
-		for _, h := range t.Handlers() {
-			haction := h.Action
-			var fn any
-			switch haction {
-			case "Get":
-				fn = handleGetReq(h, t, idcheck)
-			case "List":
-				fn = handleListReq(h, t, idcheck)
-			case "Post":
-				fn = handlePostReq(h, t, idcheck)
-			case "Patch":
-				fn = handlePatchReq(h, t, idcheck)
-			case "Put":
-				fn = handlePutReq(h, t, idcheck)
-			case "Delete":
-				fn = handleDelReq(h, t, idcheck)
-			default:
-				logv.Debug().Msgf("ignore custom handle %s", h.String())
-				continue
-			}
-			if fn != nil {
-				r.Set(utils.CamelToSnake(t.Name)+"/"+h.Suffix, h.Method, fn)
-			}
+	for _, h := range obj.Handlers() {
+		haction := h.Action
+		var fn any
+		switch haction {
+		case "Get":
+			fn = handleGetReq(h, obj, idcheck)
+		case "List":
+			fn = handleListReq(h, obj, idcheck)
+		case "Post":
+			fn = handlePostReq(h, obj, idcheck)
+		case "Patch":
+			fn = handlePatchReq(h, obj, idcheck)
+		case "Put":
+			fn = handlePutReq(h, obj, idcheck)
+		case "Delete":
+			fn = handleDelReq(h, obj, idcheck)
+		default:
+			logv.Debug().Msgf("ignore custom handle %s", h.String())
+			continue
+		}
+		if fn != nil {
+			r.Set(utils.CamelToSnake(obj.Name)+"/"+h.Suffix, h.Method, fn)
 		}
 	}
 }
@@ -135,6 +130,8 @@ func handleListReq(h *StructHandler, s *StructInfo, idCheck []string) func(*rest
 					}
 				}
 				sqlCon = append(sqlCon, fsql)
+			} else if f.Type == "gorm.DeletedAt" {
+				sqlCon = append(sqlCon, fmt.Sprintf("%s IS NULL", f.Key))
 			}
 		}
 		sqlRaw := sqlRawOrigin
@@ -145,7 +142,6 @@ func handleListReq(h *StructHandler, s *StructInfo, idCheck []string) func(*rest
 				sqlRaw += fmt.Sprintf(" AND %s ", con)
 			}
 		}
-		logv.Warn().Msgf("\n|%s|\n%s", sqlRaw, args)
 		data := make([]map[string]interface{}, 0, 10)
 		err := db.Raw(sqlRaw, sqlArgs...).Find(&data).Error
 		if err != nil {
@@ -186,7 +182,6 @@ func handlePostReq(h *StructHandler, s *StructInfo, idCheck []string) func(*rest
 				}
 			}
 		}
-		logv.Warn().Msgf("\n|%T|\n%s", data, createdMap)
 		err := db.Create(data).Error
 		if err != nil {
 			return nil, err

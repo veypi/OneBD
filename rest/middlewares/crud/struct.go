@@ -19,122 +19,152 @@ import (
 	"github.com/veypi/utils/logv"
 )
 
-func Parse(objs ...any) StructList {
-	structs := []*StructInfo{}
-	for _, obj := range objs {
-		s := &StructInfo{}
-		s.parse(obj)
-		structs = append(structs, s)
+func New() *StructGraph {
+	return &StructGraph{
+		nodes: make(map[string]*StructInfo),
+		edges: make(map[string]map[string]*StructRelation),
 	}
-	return structs
 }
 
-type StructHandler struct {
-	ObjName string
-	Action  string
-	Method  string
-	Suffix  string
-	Fields  []HandlerField
+type StructGraph struct {
+	edges map[string]map[string]*StructRelation
+	// 结构体同名视为同一结构体
+	nodes map[string]*StructInfo
 }
 
-// 存储不同请求方式里参数包含的字段
-type HandlerField struct {
-	// 原始参数名 CamelName
-	Name string
-	// 请求参数名,为空时为key
-	Alias string
-	// 存储字段名
-	Key     string
-	Type    string
-	HasStar bool
-	Src     string
-}
-
-func (t StructHandler) String() string {
-	return fmt.Sprintf("%s%s", t.ObjName, t.Action)
-}
-
-type StructList []*StructInfo
-
-func (s StructList) RegistRouter(r rest.Router) StructList {
-	for _, s := range s {
-		s.RegistRouter(r)
-	}
-	return s
-}
-
-func (s StructList) RegistArgParser(r rest.Router) StructList {
-	for _, s := range s {
-		s.RegistArgParser(r)
-	}
-	return s
-}
-
-type StructInfo struct {
-	top       *StructInfo
-	registed  bool
-	argParser bool
-	v         reflect.Value
-	t         reflect.Type
-	// CamelName
-	Name       string
-	TableName  string
-	Fields     []StructField
-	SubStructs StructList
-	handlers   []*StructHandler
-}
-
-func (s *StructInfo) HasMany(objs ...any) StructList {
-	structs := []*StructInfo{}
-	for _, obj := range objs {
-		s := &StructInfo{
-			top: s,
+func (s *StructGraph) RegistRouter(r rest.Router, fn func(rest.Router, *StructInfo)) {
+	s.calculateDegree()
+	// 从入度为0的节点开始深度遍历注册
+	for _, n := range s.nodes {
+		if n.degree[0] == 0 {
+			s.registRouterFrom(n, r, fn)
 		}
-		s.parse(obj)
-		structs = append(structs, s)
 	}
-	// crud(r, structs...)
-	s.SubStructs = append(s.SubStructs, structs...)
-	return structs
 }
-
-func (s *StructInfo) RegistArgParser(r rest.Router) {
-	if s.top != nil {
-		s.top.RegistArgParser(r)
-		return
-	}
-	s.registArgParser(r)
-}
-
-func (s *StructInfo) registArgParser(r rest.Router) {
-	if !s.argParser {
-		s.argParser = true
-		argParser(r, s)
-	}
-	snakeName := utils.CamelToSnake(s.Name)
+func (s *StructGraph) registRouterFrom(from *StructInfo, r rest.Router, fn func(rest.Router, *StructInfo)) {
+	fn(r, from)
+	snakeName := utils.CamelToSnake(from.Name)
 	subr := r.SubRouter(fmt.Sprintf("/%s/:%s_id", snakeName, snakeName))
-	for _, sub := range s.SubStructs {
-		sub.registArgParser(subr)
+	for to, sr := range s.edges[from.Name] {
+		if sr.Typ == SROne2Many {
+			s.registRouterFrom(s.Get(to), subr, fn)
+		}
+	}
+	// RegistRouter(subr, fn, s.SubStructs...)
+}
+
+func (s *StructGraph) Append(objs ...any) {
+	// *s = append(*s, Parse(objs...)...)
+	for _, obj := range objs {
+		s.Add(obj)
 	}
 }
 
-func (s *StructInfo) RegistRouter(r rest.Router) {
-	if s.top != nil {
-		s.top.RegistRouter(r)
-		return
+func (s *StructGraph) Add(obj any) *StructInfo {
+	// *s = append(*s, Parse(obj)...)
+	sObj := s.Get(obj)
+	if sObj == nil {
+		sObj = &StructInfo{
+			root: s,
+		}
+		sObj.parse(obj)
+		s.nodes[sObj.Name] = sObj
+		logv.WithNoCaller.Debug().Msgf("regist obj %s", sObj.Name)
 	}
-	s.register(r)
+	return sObj
 }
 
-func (s *StructInfo) register(r rest.Router) {
-	if !s.registed {
-		s.registed = true
-		crud(r, s)
+func (s *StructGraph) Get(t any) *StructInfo {
+	if tt, ok := t.(string); ok {
+		return s.nodes[tt]
 	}
-	snakeName := utils.CamelToSnake(s.Name)
-	subr := r.SubRouter(fmt.Sprintf("/%s/:%s_id", snakeName, snakeName))
-	for _, sub := range s.SubStructs {
-		sub.register(subr)
+	var tt reflect.Type
+	if temp, ok := t.(reflect.Type); ok {
+		tt = temp
+	} else {
+		tt = reflect.TypeOf(t)
+	}
+	if tt.Kind() == reflect.Ptr {
+		tt = tt.Elem()
+	}
+	return s.nodes[tt.Name()]
+}
+
+func (s *StructGraph) calculateDegree() {
+	for _, n := range s.nodes {
+		n.degree = [2]int{0, 0}
+	}
+	for out, outMap := range s.edges {
+		for in := range outMap {
+			s.nodes[out].degree[1]++
+			s.nodes[in].degree[0]++
+		}
+	}
+}
+
+func (s *StructGraph) One2Many(from any, to ...any) {
+	f := s.Add(from)
+	var t *StructInfo
+	for _, tObj := range to {
+		t = s.Add(tObj)
+		if s.edges[f.Name] == nil {
+			s.edges[f.Name] = make(map[string]*StructRelation)
+		}
+		s.edges[f.Name][t.Name] = &StructRelation{
+			Typ: SROne2Many,
+		}
+		f = t
+	}
+}
+
+func (s *StructGraph) Many2Many(middle any, Others ...any) {
+	m := s.Add(middle)
+	rs := &StructRelation{
+		Typ:          SRMany2Many,
+		Associations: make([]reflect.Type, 0, len(Others)),
+	}
+	for _, o := range Others {
+		t := s.Add(o)
+		if s.edges[t.Name] == nil {
+			s.edges[t.Name] = make(map[string]*StructRelation)
+		}
+		s.edges[t.Name][m.Name] = rs
+		rs.Associations = append(rs.Associations, t.t)
+	}
+}
+
+var (
+	SRMany2Many = "many2many"
+	SROne2Many  = "one2many"
+)
+
+// Out --> In
+type StructRelation struct {
+	Typ          string
+	Associations []reflect.Type
+}
+
+func (s *StructRelation) RegistRouter(r rest.Router, fn func(rest.Router, *StructInfo)) {
+}
+
+// 兼顾json 能从json导出导入结构体描述，字段描述和结构间关系
+type StructInfo struct {
+	v reflect.Value
+	t reflect.Type
+	// [in degree, out degree]
+	degree [2]int
+	root   *StructGraph
+	// CamelName
+	Name      string
+	TableName string
+	Fields    []StructField
+	Relations []StructRelation
+	handlers  []*StructHandler
+}
+
+func (s *StructInfo) HasMany(objs ...any) {
+	for _, obj := range objs {
+		s.root.One2Many(s.t, obj)
 	}
 }
 
@@ -174,6 +204,9 @@ func (s *StructInfo) parse(obj any) {
 	s.t = s.v.Type()
 	if s.t.Kind() == reflect.Ptr {
 		s.t = s.t.Elem()
+	}
+	if s.t.Kind() != reflect.Struct {
+		logv.Fatal().Msgf("obj must be a struct: %T: %v", obj, obj)
 	}
 	s.Name = s.t.Name()
 	if method := s.v.MethodByName("TableName"); method.IsValid() {
@@ -289,6 +322,31 @@ func (s *StructInfo) parseFields(t reflect.Type, obj_name string) {
 			s.Fields = append(s.Fields, resF)
 		}
 	}
+}
+
+type StructHandler struct {
+	ObjName string
+	Action  string
+	Method  string
+	Suffix  string
+	Fields  []HandlerField
+}
+
+// 存储不同请求方式里参数包含的字段
+type HandlerField struct {
+	// 原始参数名 CamelName
+	Name string
+	// 请求参数名,为空时为key
+	Alias string
+	// 存储字段名
+	Key     string
+	Type    string
+	HasStar bool
+	Src     string
+}
+
+func (t StructHandler) String() string {
+	return fmt.Sprintf("%s%s", t.ObjName, t.Action)
 }
 
 // 定义一个结构体来存储字段信息
