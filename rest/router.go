@@ -137,11 +137,12 @@ func (r *route) tree() []string {
 
 func (r *route) GetParamsList() []string {
 	var res []string
-	for r != nil {
-		if r.colon != nil || r.wildcard != nil {
-			res = append(res, r.colon.fragment)
+	tr := r
+	for tr != nil {
+		if strings.HasPrefix(tr.fragment, ":") || strings.HasPrefix(tr.fragment, "*") {
+			res = append(res, tr.fragment)
 		}
-		r = r.parent
+		tr = tr.parent
 	}
 	return res
 }

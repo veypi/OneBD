@@ -19,6 +19,10 @@ import (
 	"github.com/veypi/utils/logv"
 )
 
+// StructGraph
+// nodes(StructInfo): 结构体节点
+//
+// edges: 结构体之间的关系
 func New() *StructGraph {
 	return &StructGraph{
 		nodes: make(map[string]*StructInfo),
@@ -35,6 +39,7 @@ type StructGraph struct {
 func (s *StructGraph) RegistRouter(r rest.Router, fn func(rest.Router, *StructInfo)) {
 	s.calculateDegree()
 	// 从入度为0的节点开始深度遍历注册
+
 	for _, n := range s.nodes {
 		if n.degree[0] == 0 {
 			s.registRouterFrom(n, r, fn)
@@ -69,7 +74,7 @@ func (s *StructGraph) Add(obj any) *StructInfo {
 		}
 		sObj.parse(obj)
 		s.nodes[sObj.Name] = sObj
-		logv.WithNoCaller.Debug().Msgf("regist obj %s", sObj.Name)
+		logv.WithNoCaller.Debug().Msgf("regist obj\n%s", sObj.String())
 	}
 	return sObj
 }
@@ -121,7 +126,7 @@ func (s *StructGraph) Many2Many(middle any, Others ...any) {
 	m := s.Add(middle)
 	rs := &StructRelation{
 		Typ:          SRMany2Many,
-		Associations: make([]reflect.Type, 0, len(Others)),
+		Associations: make([]string, 0, len(Others)),
 	}
 	for _, o := range Others {
 		t := s.Add(o)
@@ -129,7 +134,7 @@ func (s *StructGraph) Many2Many(middle any, Others ...any) {
 			s.edges[t.Name] = make(map[string]*StructRelation)
 		}
 		s.edges[t.Name][m.Name] = rs
-		rs.Associations = append(rs.Associations, t.t)
+		rs.Associations = append(rs.Associations, t.Name)
 	}
 }
 
@@ -140,8 +145,8 @@ var (
 
 // Out --> In
 type StructRelation struct {
-	Typ          string
-	Associations []reflect.Type
+	Typ          string   `json:"typ"`
+	Associations []string `json:"associations"`
 }
 
 func (s *StructRelation) RegistRouter(r rest.Router, fn func(rest.Router, *StructInfo)) {
@@ -155,10 +160,10 @@ type StructInfo struct {
 	degree [2]int
 	root   *StructGraph
 	// CamelName
-	Name      string
-	TableName string
-	Fields    []StructField
-	Relations []StructRelation
+	Name      string           `json:"name"`
+	TableName string           `json:"table_name"`
+	Fields    []StructField    `json:"fields"`
+	Relations []StructRelation `json:"relations"`
 	handlers  []*StructHandler
 }
 
@@ -199,6 +204,19 @@ func (s *StructInfo) GetField(name string) *StructField {
 	return nil
 }
 
+func (s *StructInfo) GetHandlerField(hname, fname string) *HandlerField {
+	h := s.GetHandler(hname)
+	if h == nil {
+		return nil
+	}
+	for _, f := range h.Fields {
+		if f.Name == fname {
+			return &f
+		}
+	}
+	return nil
+}
+
 func (s *StructInfo) parse(obj any) {
 	s.v = reflect.ValueOf(obj)
 	s.t = s.v.Type()
@@ -226,41 +244,7 @@ func (s *StructInfo) parse(obj any) {
 			s.TableName = s.TableName + "s"
 		}
 	}
-	s.parseFields(s.t, utils.CamelToSnake(s.Name))
-	s.parseHandlers()
-}
-
-func (s *StructInfo) parseHandlers() {
-	s.handlers = make([]*StructHandler, 0, 6)
-	for _, f := range s.Fields {
-		for _, m := range f.Methods {
-			h := s.GetHandler(m.Action)
-			if h == nil {
-				h = &StructHandler{
-					ObjName: s.Name,
-					Action:  m.Action,
-					Suffix:  m.Suffix,
-					Method:  m.Method,
-				}
-				s.handlers = append(s.handlers, h)
-			} else {
-				if h.Method == "" && m.Method != "" {
-					h.Method = m.Method
-				}
-				if h.Suffix == "" && m.Suffix != "" {
-					h.Suffix = m.Suffix
-				}
-			}
-			h.Fields = append(h.Fields, HandlerField{
-				Name:    f.Name,
-				Alias:   m.Alias,
-				Key:     f.Key,
-				Type:    f.Type,
-				HasStar: m.HasStar,
-				Src:     m.Src,
-			})
-		}
-	}
+	s.parseFields(s.t)
 	records := make(map[string]string)
 	for _, h := range s.handlers {
 		uniurl := h.Method + "_" + h.Suffix
@@ -271,14 +255,14 @@ func (s *StructInfo) parseHandlers() {
 		}
 	}
 }
-func (s *StructInfo) parseFields(t reflect.Type, obj_name string) {
+
+func (s *StructInfo) parseFields(t reflect.Type) {
 	for i := 0; i < t.NumField(); i++ {
 		f := t.Field(i)
 		// n := t.Field(i).Name
-
-		// 如果字段是结构体类型，则递归调用
+		// 如果字段是匿名结构体类型，则递归调用
 		if f.Anonymous && f.Type.Kind() == reflect.Struct {
-			s.parseFields(f.Type, obj_name)
+			s.parseFields(f.Type)
 		} else {
 			key := utils.CamelToSnake(f.Name)
 			if jsonTag := f.Tag.Get("json"); jsonTag == "-" {
@@ -297,28 +281,29 @@ func (s *StructInfo) parseFields(t reflect.Type, obj_name string) {
 			if key == "id" {
 				// id 默认忽视，不存储在argParser中，由crud自动在get,patch,delete做sql条件查询处理
 				if methodsTag == "" {
-					methodsTag = "get@path,delete@path"
+					// methodsTag = "get@path,delete@path,patch@path"
+					// continue
 				}
 			} else {
 				if methodsTag == "" {
 					// 其余自动默认在list 做条件查询，在post,patch，put做字段更新
-					// post, put做数据创建时，会做*参数检查是否存在
+					// post,会做*参数检查是否存在
 					if f.Type.Kind() == reflect.Ptr {
 						methodsTag = "*list,*post,*patch,*put"
 					} else {
-						methodsTag = "*list,post,*patch,put"
+						methodsTag = "*list,post,*patch,*put"
 					}
 				}
 			}
 			resF := StructField{
-				Name:    f.Name,
-				Type:    f.Type.String(),
-				Tag:     string(f.Tag),
-				Key:     key,
-				Methods: nil,
+				root: s,
+				Name: f.Name,
+				Type: f.Type.String(),
+				Tag:  string(f.Tag),
+				Key:  key,
 			}
 			resF.ParseParse(parseTag)
-			resF.ParseMethods(methodsTag, obj_name)
+			resF.ParseMethods(methodsTag)
 			s.Fields = append(s.Fields, resF)
 		}
 	}
@@ -332,88 +317,98 @@ type StructHandler struct {
 	Fields  []HandlerField
 }
 
-// 存储不同请求方式里参数包含的字段
-type HandlerField struct {
-	// 原始参数名 CamelName
-	Name string
-	// 请求参数名,为空时为key
-	Alias string
-	// 存储字段名
-	Key     string
-	Type    string
-	HasStar bool
-	Src     string
-}
-
-func (t StructHandler) String() string {
+func (t *StructHandler) String() string {
 	return fmt.Sprintf("%s%s", t.ObjName, t.Action)
 }
 
-// 定义一个结构体来存储字段信息
-type StructField struct {
-	// 原始名 CamelName
-	Name string
-	// 通信名， 默认为snake_name, 可以通过json tag自定义
-	Key     string
-	Type    string
-	Tag     string
-	Methods []FieldMethod
-	// path header query form json
-	Src      string
-	SrcAlias string
-}
-
+// 存储不同请求方式里参数包含的字段
+// 大写为暴露给外部看的字段
 // *Action@Get@/urlsuffix@json@:argname
-type FieldMethod struct {
-	// 默认支持 Get,List,Post,Patch,Put,Delete
+type HandlerField struct {
+	// 原始参数名 CamelName
+	Name   string `json:"name"`
+	Method string `json:"method"`
 	Action string
 	Suffix string
-	// :argname定义 默认为空，设置时覆盖field.key
-	Alias   string
-	HasStar bool
-	Method  string
-	// json path query form header
-	Src string
+	// 请求参数名,为空时为key
+	Alias string `json:"alias"`
+	// 存储字段名
+	Key     string `json:"key"`
+	Type    string `json:"type"`
+	HasStar bool   `json:"has_star"`
+	Src     string `json:"src"`
 }
 
-func (m *FieldMethod) String() string {
-	txt := m.Action
+func (hf *HandlerField) String() string {
+	txt := hf.Action
 	if tpl := defaultActions[txt]; tpl != nil {
-		if m.Suffix != tpl.Suffix {
-			txt += "@/" + m.Suffix
+		if hf.Suffix != tpl.Suffix {
+			txt += "@/" + hf.Suffix
 		}
-		if m.Src != m.Src {
-			txt += "@" + m.Src
+		if hf.Src != hf.Src {
+			txt += "@" + hf.Src
 		}
 	} else {
-		if m.Method != "GET" {
-			txt += "@" + m.Method
+		if hf.Method != "GET" {
+			txt += "@" + hf.Method
 		}
-		if m.Suffix != "" {
-			txt += "@/" + m.Suffix
+		if hf.Suffix != "" {
+			txt += "@/" + hf.Suffix
 		}
-		if m.Src != "json" {
-			txt += "@" + m.Src
+		if hf.Src != "json" {
+			txt += "@" + hf.Src
 		}
 	}
-	if m.HasStar {
+	if hf.HasStar {
 		txt = "*" + txt
 	}
-	if m.Alias != "" {
-		txt += "@:" + m.Alias
+	if hf.Alias != "" {
+		txt += "@:" + hf.Alias
 	}
 	return txt
 }
 
-func (f *StructField) String() string {
-	m := ""
-	for _, method := range f.Methods {
-		m += "," + method.String()
-	}
-	return fmt.Sprintf("%s:  %s  `json:\"%s\" method:\"%s\"", f.Name, f.Type, f.Key, m[1:])
+// 定义一个结构体来存储字段信息
+type StructField struct {
+	root *StructInfo
+	// 原始名 CamelName
+	Name string `json:"name"`
+	// 通信名， 默认为snake_name, 可以通过json tag自定义
+	Key  string `json:"key"`
+	Type string `json:"type"`
+	Tag  string `json:"tag"`
+	// path header query form json
+	Src      string `json:"src"`
+	SrcAlias string `json:"src_alias"`
 }
 
-var defaultActions = map[string]*FieldMethod{
+func (f *StructField) String() string {
+	m := ""
+	for _, h := range f.root.handlers {
+		for _, hf := range h.Fields {
+			if hf.Name == f.Name {
+				m += "," + hf.String()
+			}
+		}
+	}
+	parse := f.Src
+	if parse == "" {
+		parse = "json"
+	}
+	if f.SrcAlias != "" {
+		parse += "@" + f.SrcAlias
+	}
+	res := fmt.Sprintf("%s:  %s  `json:\"%s\"", f.Name, f.Type, f.Key)
+	if m != "" {
+		res += " methods:\"" + m[1:] + "\""
+	}
+	if parse != "json" {
+		res += " parse:\"" + parse + "\""
+	}
+	return res + "`"
+}
+
+var defaultActions = map[string]*HandlerField{
 	"List":   {Action: "List", Method: http.MethodGet, Suffix: "", Src: "query"},
 	"Get":    {Action: "Get", Method: http.MethodGet, Suffix: ":#id", Src: "query"},
 	"Post":   {Action: "Post", Method: http.MethodPost, Suffix: "", Src: "json"},
@@ -425,53 +420,72 @@ var defaultSources = []string{"path", "query", "header", "form", "json"}
 var defaultMethods = []string{"get", "post", "patch", "put", "delete"}
 
 // *Action@Get@/urlsuffix@json@:argname
-func (f *StructField) ParseMethods(tag string, obj_name string) {
-	// f.Methods = make(map[]FieldMethod)
+func (f *StructField) ParseMethods(tag string) {
 	tag = strings.Replace(tag, " ", "", -1)
 	for _, tags := range strings.Split(tag, ",") {
 		matches := strings.Split(tags, "@")
 		if len(matches) == 0 || matches[0] == "" {
 			continue
 		}
-		fm := FieldMethod{
-			Method: "GET",
+		hf := HandlerField{
+			Method: http.MethodGet,
 			Src:    "json",
+			Name:   f.Name,
+			Key:    f.Key,
+			Type:   f.Type,
 		}
 		if matches[0][0] == '*' {
-			fm.HasStar = true
-			fm.Action = utils.SnakeToCamel(matches[0][1:])
+			hf.HasStar = true
+			hf.Action = utils.SnakeToCamel(matches[0][1:])
 		} else {
-			fm.Action = utils.SnakeToCamel(matches[0])
+			hf.Action = utils.SnakeToCamel(matches[0])
 		}
-		m := defaultActions[fm.Action]
+		m := defaultActions[hf.Action]
 		if m != nil {
-			fm.Method = m.Method
-			fm.Suffix = m.Suffix
-			fm.Src = m.Src
+			hf.Method = m.Method
+			hf.Suffix = m.Suffix
+			hf.Src = m.Src
 		}
 		if f.Src != "" {
-			fm.Src = f.Src
+			hf.Src = f.Src
 		}
 		if f.SrcAlias != "" {
-			fm.Alias = f.SrcAlias
+			hf.Alias = f.SrcAlias
 		}
 		for _, subMatch := range matches[1:] {
 			if subMatch == "" {
 				continue
 			} else if subMatch[0] == ':' {
-				fm.Alias = subMatch[1:]
+				hf.Alias = subMatch[1:]
 			} else if subMatch[0] == '/' {
-				fm.Suffix = subMatch[1:]
+				hf.Suffix = subMatch[1:]
 			} else if utils.InList(subMatch, defaultSources) {
-				fm.Src = subMatch
+				hf.Src = subMatch
 			} else if utils.InList(subMatch, defaultMethods) {
-				fm.Method = strings.ToUpper(subMatch)
+				hf.Method = strings.ToUpper(subMatch)
 			} else {
 				logv.Warn().Msgf("method tag: %s not support, %s", subMatch, tag)
 			}
 		}
-		fm.Suffix = strings.ReplaceAll(fm.Suffix, "#id", obj_name+"_id")
-		f.Methods = append(f.Methods, fm)
+		hf.Suffix = strings.ReplaceAll(hf.Suffix, "#id", utils.CamelToSnake(f.root.Name)+"_id")
+		// f.Methods = append(f.Methods, fm)
+		h := f.root.GetHandler(hf.Action)
+		if h == nil {
+			h = &StructHandler{
+				ObjName: f.root.Name,
+				Action:  hf.Action,
+				Suffix:  hf.Suffix,
+				Method:  hf.Method,
+			}
+			f.root.handlers = append(f.root.handlers, h)
+		}
+		if h.Method == "" && hf.Method != "" {
+			h.Method = hf.Method
+		}
+		if h.Suffix == "" && hf.Suffix != "" {
+			h.Suffix = hf.Suffix
+		}
+		h.Fields = append(h.Fields, hf)
 	}
 }
 

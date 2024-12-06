@@ -65,7 +65,7 @@ func handleGetReq(_ *StructHandler, s *StructInfo, idCheck []string) func(x *res
 	plen := len(idCheck) + 1
 	return func(x *rest.X) (any, error) {
 		if len(x.Params) != plen {
-			return nil, ErrMissArg.Fmt("path id")
+			return nil, ErrMissArg.Fmt("id from path")
 		}
 		data := make(map[string]interface{})
 		ids := make([]any, plen)

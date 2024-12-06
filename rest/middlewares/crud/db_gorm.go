@@ -8,6 +8,7 @@
 package crud
 
 import (
+	"github.com/veypi/utils/logv"
 	"gorm.io/gorm"
 )
 
@@ -30,5 +31,6 @@ func AutoDrop(db *gorm.DB, graph *StructGraph) error {
 	for _, obj := range graph.nodes {
 		items = append(items, obj.v.Interface())
 	}
+	logv.Warn().Msgf("%v", items)
 	return db.Migrator().DropTable(items...)
 }
