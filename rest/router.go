@@ -5,15 +5,9 @@
 package rest
 
 import (
-	"embed"
 	"errors"
 	"fmt"
-	"io"
-	"io/fs"
-	"mime"
 	"net/http"
-	"os"
-	"path"
 	"reflect"
 	"runtime"
 	"strings"
@@ -76,9 +70,6 @@ type Router interface {
 
 	Use(middleware ...any)
 	SetErrFunc(fc ErrHandle)
-	Static(prefix string, directory string, file404 string)
-	EmbedFile(prefix string, f []byte)
-	EmbedDir(prefix string, fs embed.FS, fsPrefix string, file404 string)
 }
 
 type route struct {
@@ -380,117 +371,6 @@ func (r *route) use(m any) {
 	for method := range r.handlers {
 		r.handlers[method] = append(r.handlers[method], m)
 	}
-}
-
-func (r *route) Static(prefix string, directory string, file404 string) {
-	dir, err := os.Stat(directory)
-	if err != nil {
-		logv.Panic().Err(err).Send()
-		return
-	}
-	if !dir.IsDir() {
-		r.Set(prefix, http.MethodGet, func(w http.ResponseWriter, req *http.Request) {
-			f, err := os.Open(directory)
-			if err != nil {
-				panic(err)
-			}
-			info, err := f.Stat()
-			if err != nil {
-				w.WriteHeader(http.StatusNotFound)
-				return
-			}
-			w.Header().Set("Content-Type", mime.TypeByExtension(path.Ext(info.Name())))
-			http.ServeContent(w, req, info.Name(), info.ModTime(), f)
-		})
-		return
-	}
-	if strings.Contains(prefix, "*") {
-		panic("static prefix should not contain *")
-	}
-	if !strings.HasSuffix(prefix, "/") {
-		prefix += "/"
-	}
-	prefix += "*path"
-	var fs http.FileSystem = http.Dir(directory)
-	r.Set(prefix, http.MethodGet, func(x *X) {
-		name := strings.TrimSuffix(x.Params.GetStr("path"), "/")
-		f, info, err := handleDirOpen(fs.Open(name))
-		if file404 != "" && err != nil {
-			// handler name/+ ./404.html ./index.html
-			if file404[0] == '.' {
-				f, info, err = handleDirOpen(fs.Open(name + file404[1:]))
-			} else {
-				f, info, err = handleDirOpen(fs.Open(file404))
-			}
-		}
-		if err != nil {
-			x.WriteHeader(http.StatusNotFound)
-			logv.Debug().Err(err).Send()
-			return
-		}
-		defer f.Close()
-		x.Header().Set("Content-Type", mime.TypeByExtension(path.Ext(info.Name())))
-		http.ServeContent(x, x.Request, info.Name(), info.ModTime(), f.(io.ReadSeeker))
-	})
-}
-
-func (r *route) EmbedFile(prefix string, f []byte) {
-	r.Set(prefix, http.MethodGet, func(w http.ResponseWriter, req *http.Request) {
-		w.Header().Set("Content-Type", mime.TypeByExtension(path.Ext(req.URL.Path)))
-		_, err := w.Write(f)
-		if err != nil {
-			logv.Warn().Msgf("write file failed: %s", err.Error())
-		}
-	})
-}
-
-func handleDirOpen(f fs.File, err error) (fs.File, fs.FileInfo, error) {
-	if err != nil {
-		return nil, nil, err
-	}
-	info, err := f.Stat()
-	if err != nil {
-		f.Close()
-		return nil, nil, err
-	}
-	if info.IsDir() {
-		f.Close()
-		return nil, nil, fs.ErrNotExist
-	}
-	return f, info, nil
-}
-
-func (r *route) EmbedDir(prefix string, dir embed.FS, fsPrefix string, file404 string) {
-	if strings.Contains(prefix, "*") {
-		panic("static prefix should not contain *")
-	}
-	if !strings.HasSuffix(prefix, "/") {
-		prefix += "/"
-	}
-	prefix += "*path"
-	if !strings.HasSuffix(fsPrefix, "/") {
-		fsPrefix += "/"
-	}
-	r.Set(prefix, http.MethodGet, func(x *X) {
-		name := strings.TrimSuffix(fsPrefix+x.Params.GetStr("path"), "/")
-		f, info, err := handleDirOpen(dir.Open(name))
-		if file404 != "" && err != nil {
-			// handler name/+ ./404.html ./index.html
-			if file404[0] == '.' {
-				f, info, err = handleDirOpen(dir.Open(name + file404[1:]))
-			} else {
-				f, info, err = handleDirOpen(dir.Open(fsPrefix + file404))
-			}
-		}
-		if err != nil {
-			x.WriteHeader(http.StatusNotFound)
-			logv.Debug().Err(err).Send()
-			return
-		}
-		defer f.Close()
-		x.Header().Set("Content-Type", mime.TypeByExtension(path.Ext(info.Name())))
-		http.ServeContent(x, x.Request, info.Name(), info.ModTime(), f.(io.ReadSeeker))
-	})
 }
 
 func (r *route) SubRouter(prefix string) Router {
