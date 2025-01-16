@@ -41,9 +41,9 @@ func githubRouter() Router {
 	r := NewRouter()
 	r.Use(func(x *X) error {
 		logv.Info().Int("id", 1).Str("p", x.Request.URL.Path).Msg(x.Params[0][0])
-		err := x.Next()
-		logv.Info().Int("id", 10).Err(err).Str("p", x.Request.URL.Path).Msg(x.Params[0][1])
-		return err
+		x.Next()
+		logv.Info().Int("id", 10).Str("p", x.Request.URL.Path).Msg(x.Params[0][1])
+		return nil
 	})
 	r.Use(func(x *X) error {
 		logv.Info().Int("id", 2).Str("p", x.Request.URL.Path).Msg(x.Params.GetStr("sha"))

@@ -5,7 +5,6 @@
 package rest
 
 import (
-	"errors"
 	"fmt"
 	"net/http"
 	"reflect"
@@ -25,12 +24,7 @@ type fc3 = func(http.ResponseWriter, *http.Request)
 type fc4 = func(*X) (any, error)
 type fc5 = func(*X, any) error
 type fc6 = func(*X, any) (any, error)
-
-type ApiHandler interface {
-	fc0 | fc1 | fc2 | fc3 | fc4 | fc5 | fc6
-}
-
-type ErrHandle = func(x *X, err error)
+type fc_err = func(*X, error) error
 
 var allowedMethods = []string{
 	http.MethodGet, http.MethodHead, http.MethodPost, http.MethodPut,
@@ -39,15 +33,8 @@ var allowedMethods = []string{
 
 func NewRouter() Router {
 	r := &route{}
-	r.errHandler = func(x *X, err error) {
-		if errors.Is(err, ErrNotFound) {
-			x.WriteHeader(404)
-		} else {
-			x.WriteHeader(500)
-		}
-		if err != nil {
-			x.Write([]byte(err.Error()))
-		}
+	r.notFoundHandler = func(x *X) {
+		x.WriteHeader(404)
 	}
 	return r
 }
@@ -69,7 +56,7 @@ type Router interface {
 	Delete(url string, handlers ...any) Router
 
 	Use(middleware ...any)
-	SetErrFunc(fc ErrHandle)
+	SetNotFound(fc fc0)
 }
 
 type route struct {
@@ -85,7 +72,7 @@ type route struct {
 	colon      *route
 	wildcard   *route
 
-	errHandler ErrHandle
+	notFoundHandler fc0
 }
 
 func (r *route) Print() {
@@ -145,18 +132,23 @@ func (r *route) String() string {
 	return r.fragment
 }
 
-func (r *route) match(u string, m string, x *X) *route {
+func (r *route) match(u string, m string, x *X) (*route, []any) {
 	if u == "/" || u == "" {
-		if len(r.handlers[m]) > 0 || len(r.handlers["ANY"]) > 0 {
-			return r
+		if len(r.handlers[m]) > 0 {
+			return r, r.handlers[m]
+		} else if len(r.handlers["ANY"]) > 0 {
+			return r, r.handlers["ANY"]
 		}
 		if r.wildcard != nil {
-			if len(r.wildcard.handlers[m]) > 0 || len(r.wildcard.handlers["ANY"]) > 0 {
+			if len(r.wildcard.handlers[m]) > 0 {
 				x.SetParam(r.wildcard.fragment[1:], "")
-				return r.wildcard
+				return r.wildcard, r.wildcard.handlers[m]
+			} else if len(r.wildcard.handlers["ANY"]) > 0 {
+				x.SetParam(r.wildcard.fragment[1:], "")
+				return r.wildcard, r.wildcard.handlers["ANY"]
 			}
 		}
-		return nil
+		return nil, nil
 	}
 	idx := 0
 	for i, v := range u {
@@ -171,25 +163,31 @@ func (r *route) match(u string, m string, x *X) *route {
 		nexts = nexts[1:]
 	}
 	if subr := r.subRouters[u[:idx]]; subr != nil {
-		temp := subr.match(nexts, m, x)
+		temp, fcs := subr.match(nexts, m, x)
 		if temp != nil {
-			return temp
+			return temp, fcs
 		}
 	}
 	if r.colon != nil {
-		temp := r.colon.match(nexts, m, x)
+		temp, fcs := r.colon.match(nexts, m, x)
 		if temp != nil {
 			x.SetParam(r.colon.fragment[1:], u[:idx])
-			return temp
+			return temp, fcs
 		}
 	}
 	if r.wildcard != nil {
-		if len(r.wildcard.handlers[m]) > 0 || len(r.wildcard.handlers["ANY"]) > 0 {
+		if len(r.wildcard.handlers[m]) > 0 {
 			x.SetParam(r.wildcard.fragment[1:], u)
-			return r.wildcard
+			return r.wildcard, r.wildcard.handlers[m]
+		} else if len(r.wildcard.handlers["ANY"]) > 0 {
+			x.SetParam(r.wildcard.fragment[1:], u)
+			return r.wildcard, r.wildcard.handlers["ANY"]
 		}
 	}
-	return nil
+	if r.notFoundHandler != nil {
+		return r, nil
+	}
+	return nil, nil
 }
 
 func (r *route) ServeHTTP(w http.ResponseWriter, req *http.Request) {
@@ -199,27 +197,19 @@ func (r *route) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	x.writer = w
 	start := time.Now()
 
-	if subR := r.match(req.URL.Path[1:], req.Method, x); subR != nil {
-		x.fcs = subR.handlers[req.Method]
-		if len(x.fcs) == 0 {
-			x.fcs = subR.handlers["ANY"]
+	if subR, fcs := r.match(req.URL.Path[1:], req.Method, x); subR != nil {
+		if len(fcs) > 0 {
+			x.fcs = fcs
+			x.Next()
+		} else {
+			logv.Warn().Msg("2")
+			subR.notFoundHandler(x)
 		}
-		err := x.Next()
-		if err != nil {
-			subR.fire_err(x, err)
-		}
-	} else {
-		r.fire_err(x, ErrNotFound)
+	} else if r.notFoundHandler != nil {
+		logv.Warn().Msg("1")
+		r.notFoundHandler(x)
 	}
 	logv.WithNoCaller.Debug().Int("ms", int(time.Since(start).Milliseconds())).Str("method", req.Method).Int("code", x.code).Msg(req.RequestURI)
-}
-
-func (r *route) fire_err(x *X, err error) {
-	if r.errHandler != nil {
-		r.errHandler(x, err)
-	} else {
-		r.parent.fire_err(x, err)
-	}
 }
 
 func (r *route) get_subrouter(url string) *route {
@@ -284,7 +274,7 @@ func (r *route) get_subrouter(url string) *route {
 func (r *route) Set(prefix string, method string, handlers ...any) Router {
 	method = strings.ToUpper(method)
 	logv.Assert(utils.InList(method, allowedMethods), fmt.Sprintf("not support HTTP method: %v", method))
-	logv.Assert(len(handlers) > 0, "there must be at least one handler")
+	// logv.Assert(len(handlers) > 0, "there must be at least one handler")
 
 	var tmp *route
 	if len(r.fragment) > 0 && r.fragment[0] == '*' {
@@ -296,11 +286,11 @@ func (r *route) Set(prefix string, method string, handlers ...any) Router {
 		tmp.handlers = make(map[string][]any)
 	}
 	for _, fc := range handlers {
-		if reflect.ValueOf(fc).IsNil() {
+		if fc == nil || reflect.ValueOf(fc).IsNil() {
 			logv.WithNoCaller.Fatal().Caller(1).Msgf("set nil handler for %s/%s: %T", r.String(), prefix, fc)
 		}
 		switch fc := fc.(type) {
-		case fc0, fc1, fc2, fc3, fc4, fc5, fc6:
+		case fc0, fc1, fc2, fc3, fc4, fc5, fc6, fc_err:
 		default:
 			logv.WithNoCaller.Fatal().Caller(1).Msgf("handler type not support: %T", fc)
 		}
@@ -350,7 +340,7 @@ func (r *route) Delete(url string, handlers ...any) Router {
 func (r *route) Use(middleware ...any) {
 	for _, m := range middleware {
 		switch m := m.(type) {
-		case fc0, fc1, fc2, fc3, fc4, fc5, fc6:
+		case fc0, fc1, fc2, fc3, fc4, fc5, fc6, fc_err:
 			r.use(m)
 		default:
 			panic(fmt.Sprintf("not support middleware %T", m))
@@ -378,6 +368,6 @@ func (r *route) SubRouter(prefix string) Router {
 	return r.get_subrouter(prefix)
 }
 
-func (r *route) SetErrFunc(fc ErrHandle) {
-	r.errHandler = fc
+func (r *route) SetNotFound(fc fc0) {
+	r.notFoundHandler = fc
 }

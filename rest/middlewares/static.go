@@ -21,6 +21,14 @@ import (
 	"github.com/veypi/utils/logv"
 )
 
+func Hanlder404(x *rest.X, err error) error {
+	if err != nil {
+		x.WriteHeader(404)
+		x.Write([]byte(err.Error()))
+	}
+	return nil
+}
+
 // need to define *path in url variable
 // like: app.Router('/*path',http.MethodGet,static.Static("./static", "./404.html"))
 func Static(directory string, file404 string) func(*rest.X) {
@@ -50,7 +58,6 @@ func Static(directory string, file404 string) func(*rest.X) {
 		f, info, err := handleDirOpen(fs.Open(name))
 		if file404 != "" && err != nil {
 			// handler name/+ ./404.html ./index.html
-			x.WriteHeader(http.StatusNotFound)
 			if file404[0] == '.' {
 				f, info, err = handleDirOpen(fs.Open(name + file404[1:]))
 			} else {
@@ -93,6 +100,8 @@ func EmbedFile(f []byte) func(*rest.X) {
 		}
 	}
 }
+
+// need to define *path in url variable
 func EmbedDir(dir embed.FS, fsPrefix string, file404 string) func(*rest.X) {
 	if !strings.HasSuffix(fsPrefix, "/") {
 		fsPrefix += "/"

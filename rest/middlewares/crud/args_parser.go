@@ -44,6 +44,7 @@ func ArgParser(r rest.Router, obj *StructInfo) {
 					return nil, fmt.Errorf("%w: %v", ErrParse, err)
 				}
 			}
+			var err error
 			for _, f := range h.Fields {
 				var fbody any
 				fset := false
@@ -89,7 +90,8 @@ func ArgParser(r rest.Router, obj *StructInfo) {
 				if fset {
 					// do not use srcAlias
 				} else if !f.HasStar {
-					return nil, ErrMissArg.Fmt(fk + " from " + f.Src)
+					err = ErrMissArg.Fmt(fk + " from " + f.Src)
+					break
 				}
 			}
 			if queryMap == nil {
@@ -99,7 +101,7 @@ func ArgParser(r rest.Router, obj *StructInfo) {
 				x.Skip()
 				return h.Fields, nil
 			}
-			return args, nil
+			return args, err
 		}
 		haction := h.Action
 		switch haction {

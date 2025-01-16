@@ -54,11 +54,11 @@ func CRUD(r rest.Router, obj *StructInfo) {
 }
 
 func handleGetReq(_ *StructHandler, s *StructInfo, idCheck []string) func(x *rest.X) (any, error) {
-	feilds := ""
-	for _, f := range s.Fields {
-		feilds += "," + f.Key
-	}
-	sqlRaw := fmt.Sprintf("SELECT %s FROM %s WHERE id = ?", feilds[1:], s.TableName)
+	// feilds := ""
+	// for _, f := range s.Fields {
+	// 	feilds += "," + f.Key
+	// }
+	sqlRaw := fmt.Sprintf("SELECT * FROM %s WHERE id = ?", s.TableName)
 	for _, idc := range idCheck {
 		sqlRaw = fmt.Sprintf("%s AND %s = ?", sqlRaw, idc[1:])
 	}
@@ -81,11 +81,11 @@ func handleGetReq(_ *StructHandler, s *StructInfo, idCheck []string) func(x *res
 }
 
 func handleListReq(h *StructHandler, s *StructInfo, idCheck []string) func(*rest.X, any) (any, error) {
-	feilds := ""
-	for _, f := range s.Fields {
-		feilds += "," + f.Key
-	}
-	sqlRawOrigin := fmt.Sprintf("SELECT %s FROM %s", feilds[1:], s.TableName)
+	// feilds := ""
+	// for _, f := range s.Fields {
+	// 	feilds += "," + f.Key
+	// }
+	sqlRawOrigin := fmt.Sprintf("SELECT * FROM %s", s.TableName)
 	idCon := make([]string, len(idCheck))
 	for i := range idCheck {
 		idCon[i] = idCheck[i][1:] + " = ?"
@@ -124,6 +124,8 @@ func handleListReq(h *StructHandler, s *StructInfo, idCheck []string) func(*rest
 						fsql = fmt.Sprintf("%s > ?", f.Key)
 					case "lt":
 						fsql = fmt.Sprintf("%s < ?", f.Key)
+					case "null":
+						fsql = fmt.Sprintf("%s IS NULL", f.Key)
 					case "between":
 						fsql = fmt.Sprintf("%s BETWEEN ? AND ?", f.Key)
 						sqlArgs = append(sqlArgs, args[fk+"_opt_max"])
@@ -132,6 +134,13 @@ func handleListReq(h *StructHandler, s *StructInfo, idCheck []string) func(*rest
 				sqlCon = append(sqlCon, fsql)
 			} else if f.Type == "gorm.DeletedAt" {
 				sqlCon = append(sqlCon, fmt.Sprintf("%s IS NULL", f.Key))
+			} else if optv, ok := args[f.Key+"_opt"].(string); ok {
+				optv = strings.ToLower(optv)
+				switch optv {
+				case "null":
+					fsql := fmt.Sprintf("%s IS NULL", f.Key)
+					sqlCon = append(sqlCon, fsql)
+				}
 			}
 		}
 		sqlRaw := sqlRawOrigin
@@ -178,7 +187,14 @@ func handlePostReq(h *StructHandler, s *StructInfo, idCheck []string) func(*rest
 			fv := dataElem.FieldByName(k)
 			if fv.IsValid() {
 				if fv.CanSet() {
-					fv.Set(reflect.ValueOf(v))
+					if fv.Type().Kind() == reflect.Pointer {
+						nv := reflect.New(fv.Type().Elem())
+						nv.Elem().Set(reflect.ValueOf(v))
+						logv.Warn().Msgf("%T %v %T", nv, nv.Type(), v)
+						fv.Set(nv)
+					} else {
+						fv.Set(reflect.ValueOf(v))
+					}
 				}
 			}
 		}

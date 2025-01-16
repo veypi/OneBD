@@ -74,7 +74,7 @@ func (s *StructGraph) Add(obj any) *StructInfo {
 		}
 		sObj.parse(obj)
 		s.nodes[sObj.Name] = sObj
-		logv.WithNoCaller.Debug().Msgf("regist obj\n%s", sObj.String())
+		// logv.WithNoCaller.Debug().Msgf("regist obj\n%s", sObj.String())
 	}
 	return sObj
 }
@@ -244,6 +244,7 @@ func (s *StructInfo) parse(obj any) {
 			s.TableName = s.TableName + "s"
 		}
 	}
+	s.initHandlers()
 	s.parseFields(s.t)
 	records := make(map[string]string)
 	for _, h := range s.handlers {
@@ -409,15 +410,29 @@ func (f *StructField) String() string {
 }
 
 var defaultActions = map[string]*HandlerField{
-	"List":   {Action: "List", Method: http.MethodGet, Suffix: "", Src: "query"},
+	"List": {Action: "List", Method: http.MethodGet, Suffix: "", Src: "query"},
+	"Post": {Action: "Post", Method: http.MethodPost, Suffix: "", Src: "json"},
+	"Put":  {Action: "Put", Method: http.MethodPut, Suffix: "", Src: "json"},
+
 	"Get":    {Action: "Get", Method: http.MethodGet, Suffix: ":#id", Src: "query"},
-	"Post":   {Action: "Post", Method: http.MethodPost, Suffix: "", Src: "json"},
 	"Patch":  {Action: "Patch", Method: http.MethodPatch, Suffix: ":#id", Src: "json"},
-	"Put":    {Action: "Put", Method: http.MethodPut, Suffix: "", Src: "json"},
 	"Delete": {Action: "Delete", Method: http.MethodDelete, Suffix: ":#id", Src: "json"},
 }
 var defaultSources = []string{"path", "query", "header", "form", "json"}
 var defaultMethods = []string{"get", "post", "patch", "put", "delete"}
+
+func (s *StructInfo) initHandlers() {
+	s.handlers = make([]*StructHandler, 0)
+	obj_id := utils.CamelToSnake(s.Name) + "_id"
+	for _, dh := range defaultActions {
+		s.handlers = append(s.handlers, &StructHandler{
+			ObjName: s.Name,
+			Action:  dh.Action,
+			Suffix:  strings.ReplaceAll(dh.Suffix, "#id", obj_id),
+			Method:  dh.Method,
+		})
+	}
+}
 
 // *Action@Get@/urlsuffix@json@:argname
 func (f *StructField) ParseMethods(tag string) {
@@ -479,10 +494,10 @@ func (f *StructField) ParseMethods(tag string) {
 			}
 			f.root.handlers = append(f.root.handlers, h)
 		}
-		if h.Method == "" && hf.Method != "" {
+		if hf.Method != "" {
 			h.Method = hf.Method
 		}
-		if h.Suffix == "" && hf.Suffix != "" {
+		if hf.Suffix != "" {
 			h.Suffix = hf.Suffix
 		}
 		h.Fields = append(h.Fields, hf)

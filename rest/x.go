@@ -22,6 +22,7 @@ import (
 	"sync"
 
 	"github.com/veypi/utils"
+	"github.com/veypi/utils/logv"
 )
 
 type X struct {
@@ -217,20 +218,23 @@ func (x *X) Skip(counts ...uint) {
 	x.fid += int(count)
 }
 
-func (x *X) Next(args ...any) (err error) {
+func (x *X) Next(args ...any) {
 	// args[0] vaild
+	var err error
 	defer func() {
 		if e := recover(); e != nil {
 			if e2, ok := e.(error); ok {
-				err = fmt.Errorf("%s: %w", ErrCrash, e2)
+				err = e2
 			} else {
 				err = fmt.Errorf("%s: %v", ErrCrash, e)
 			}
-			debug.PrintStack()
+			if !x.handleErr(err) {
+				debug.PrintStack()
+			}
 		}
 	}()
 	if x.fid >= len(x.fcs) {
-		return nil
+		return
 	}
 	fc := x.fcs[x.fid]
 	x.fid++
@@ -253,11 +257,27 @@ func (x *X) Next(args ...any) (err error) {
 		err = fc(x, arg)
 	case fc6:
 		arg, err = fc(x, arg)
+	case fc_err:
+		// do nothing
 	}
 	if err != nil {
-		return err
+		x.handleErr(err)
+		return
 	}
-	return x.Next(arg)
+	x.Next(arg)
+}
+
+func (x *X) handleErr(err error) bool {
+	for _, fc := range x.fcs[x.fid:] {
+		if fc, ok := fc.(fc_err); ok && err != nil {
+			err = fc(x, err)
+		}
+	}
+	if err != nil {
+		logv.Warn().Msgf("unhandled error: %v", err)
+		return false
+	}
+	return true
 }
 
 func (x *X) Write(p []byte) (n int, err error) {
