@@ -202,11 +202,9 @@ func (r *route) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 			x.fcs = fcs
 			x.Next()
 		} else {
-			logv.Warn().Msg("2")
 			subR.notFoundHandler(x)
 		}
 	} else if r.notFoundHandler != nil {
-		logv.Warn().Msg("1")
 		r.notFoundHandler(x)
 	}
 	logv.WithNoCaller.Debug().Int("ms", int(time.Since(start).Milliseconds())).Str("method", req.Method).Int("code", x.code).Msg(req.RequestURI)

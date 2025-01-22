@@ -25,22 +25,22 @@ import (
 // edges: 结构体之间的关系
 func New() *StructGraph {
 	return &StructGraph{
-		nodes: make(map[string]*StructInfo),
-		edges: make(map[string]map[string]*StructRelation),
+		Nodes: make(map[string]*StructInfo),
+		Edges: make(map[string]map[string]*StructRelation),
 	}
 }
 
 type StructGraph struct {
-	edges map[string]map[string]*StructRelation
+	Edges map[string]map[string]*StructRelation `json:"edges"`
 	// 结构体同名视为同一结构体
-	nodes map[string]*StructInfo
+	Nodes map[string]*StructInfo `json:"nodes"`
 }
 
 func (s *StructGraph) RegistRouter(r rest.Router, fn func(rest.Router, *StructInfo)) {
 	s.calculateDegree()
 	// 从入度为0的节点开始深度遍历注册
 
-	for _, n := range s.nodes {
+	for _, n := range s.Nodes {
 		if n.degree[0] == 0 {
 			s.registRouterFrom(n, r, fn)
 		}
@@ -50,7 +50,7 @@ func (s *StructGraph) registRouterFrom(from *StructInfo, r rest.Router, fn func(
 	fn(r, from)
 	snakeName := utils.CamelToSnake(from.Name)
 	subr := r.SubRouter(fmt.Sprintf("/%s/:%s_id", snakeName, snakeName))
-	for to, sr := range s.edges[from.Name] {
+	for to, sr := range s.Edges[from.Name] {
 		if sr.Typ == SROne2Many {
 			s.registRouterFrom(s.Get(to), subr, fn)
 		}
@@ -73,7 +73,7 @@ func (s *StructGraph) Add(obj any) *StructInfo {
 			root: s,
 		}
 		sObj.parse(obj)
-		s.nodes[sObj.Name] = sObj
+		s.Nodes[sObj.Name] = sObj
 		// logv.WithNoCaller.Debug().Msgf("regist obj\n%s", sObj.String())
 	}
 	return sObj
@@ -81,7 +81,7 @@ func (s *StructGraph) Add(obj any) *StructInfo {
 
 func (s *StructGraph) Get(t any) *StructInfo {
 	if tt, ok := t.(string); ok {
-		return s.nodes[tt]
+		return s.Nodes[tt]
 	}
 	var tt reflect.Type
 	if temp, ok := t.(reflect.Type); ok {
@@ -92,17 +92,17 @@ func (s *StructGraph) Get(t any) *StructInfo {
 	if tt.Kind() == reflect.Ptr {
 		tt = tt.Elem()
 	}
-	return s.nodes[tt.Name()]
+	return s.Nodes[tt.Name()]
 }
 
 func (s *StructGraph) calculateDegree() {
-	for _, n := range s.nodes {
+	for _, n := range s.Nodes {
 		n.degree = [2]int{0, 0}
 	}
-	for out, outMap := range s.edges {
+	for out, outMap := range s.Edges {
 		for in := range outMap {
-			s.nodes[out].degree[1]++
-			s.nodes[in].degree[0]++
+			s.Nodes[out].degree[1]++
+			s.Nodes[in].degree[0]++
 		}
 	}
 }
@@ -112,10 +112,10 @@ func (s *StructGraph) One2Many(from any, to ...any) {
 	var t *StructInfo
 	for _, tObj := range to {
 		t = s.Add(tObj)
-		if s.edges[f.Name] == nil {
-			s.edges[f.Name] = make(map[string]*StructRelation)
+		if s.Edges[f.Name] == nil {
+			s.Edges[f.Name] = make(map[string]*StructRelation)
 		}
-		s.edges[f.Name][t.Name] = &StructRelation{
+		s.Edges[f.Name][t.Name] = &StructRelation{
 			Typ: SROne2Many,
 		}
 		f = t
@@ -130,10 +130,10 @@ func (s *StructGraph) Many2Many(middle any, Others ...any) {
 	}
 	for _, o := range Others {
 		t := s.Add(o)
-		if s.edges[t.Name] == nil {
-			s.edges[t.Name] = make(map[string]*StructRelation)
+		if s.Edges[t.Name] == nil {
+			s.Edges[t.Name] = make(map[string]*StructRelation)
 		}
-		s.edges[t.Name][m.Name] = rs
+		s.Edges[t.Name][m.Name] = rs
 		rs.Associations = append(rs.Associations, t.Name)
 	}
 }
@@ -238,8 +238,8 @@ func (s *StructInfo) parse(obj any) {
 		if regexp.MustCompile(`(s|z|x|sh|zh)$`).MatchString(s.TableName) {
 			s.TableName = s.TableName + "es"
 		} else if regexp.MustCompile(`\d$`).MatchString(s.TableName) {
-		} else if regexp.MustCompile(`y$`).MatchString(s.TableName) {
-			s.TableName = s.TableName[:len(s.TableName)-1] + "ies"
+			// } else if regexp.MustCompile(`y$`).MatchString(s.TableName) {
+			// 	s.TableName = s.TableName[:len(s.TableName)-1] + "ies"
 		} else {
 			s.TableName = s.TableName + "s"
 		}

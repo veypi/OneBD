@@ -187,12 +187,39 @@ func handlePostReq(h *StructHandler, s *StructInfo, idCheck []string) func(*rest
 			fv := dataElem.FieldByName(k)
 			if fv.IsValid() {
 				if fv.CanSet() {
-					if fv.Type().Kind() == reflect.Pointer {
+					fvk := fv.Kind()
+
+					if fvk == reflect.Pointer {
 						nv := reflect.New(fv.Type().Elem())
 						nv.Elem().Set(reflect.ValueOf(v))
 						logv.Warn().Msgf("%T %v %T", nv, nv.Type(), v)
 						fv.Set(nv)
+					} else if fvk == reflect.Struct {
 					} else {
+						switch fvk {
+						case reflect.Uint:
+							v = uint(v.(float64))
+						case reflect.Uint8:
+							v = uint8(v.(float64))
+						case reflect.Uint16:
+							v = uint16(v.(float64))
+						case reflect.Uint32:
+							v = uint32(v.(float64))
+						case reflect.Uint64:
+							v = uint64(v.(float64))
+						case reflect.Int:
+							v = int(v.(float64))
+						case reflect.Int8:
+							v = int8(v.(float64))
+						case reflect.Int16:
+							v = int16(v.(float64))
+						case reflect.Int32:
+							v = int32(v.(float64))
+						case reflect.Int64:
+							v = int64(v.(float64))
+						case reflect.Float32:
+							v = float32(v.(float64))
+						}
 						fv.Set(reflect.ValueOf(v))
 					}
 				}

@@ -8,13 +8,12 @@
 package crud
 
 import (
-	"github.com/veypi/utils/logv"
 	"gorm.io/gorm"
 )
 
 func AutoMigrate(db *gorm.DB, graph *StructGraph) error {
 	items := make([]any, 0, 10)
-	for _, obj := range graph.nodes {
+	for _, obj := range graph.Nodes {
 		items = append(items, obj.v.Interface())
 	}
 	db.DisableForeignKeyConstraintWhenMigrating = true
@@ -28,9 +27,8 @@ func AutoMigrate(db *gorm.DB, graph *StructGraph) error {
 
 func AutoDrop(db *gorm.DB, graph *StructGraph) error {
 	items := make([]any, 0, 10)
-	for _, obj := range graph.nodes {
+	for _, obj := range graph.Nodes {
 		items = append(items, obj.v.Interface())
 	}
-	logv.Warn().Msgf("%v", items)
 	return db.Migrator().DropTable(items...)
 }
