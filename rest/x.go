@@ -243,21 +243,31 @@ func (x *X) Next(args ...any) {
 		arg = args[0]
 	}
 	switch fc := fc.(type) {
-	case fc0:
+	case func00:
 		fc(x)
-	case fc1:
+	case func01:
+		arg = fc(x)
+	case func02:
 		err = fc(x)
-	case fc2:
-		err = fc(x, x.Request)
-	case fc3:
-		fc(x, x.Request)
-	case fc4:
+	case func03:
 		arg, err = fc(x)
-	case fc5:
+	case func10:
+		fc(x, arg)
+	case func11:
+		arg = fc(x, arg)
+	case func12:
 		err = fc(x, arg)
-	case fc6:
+	case func13:
 		arg, err = fc(x, arg)
-	case fc_err:
+	case func20:
+		fc(x, x.Request)
+	case func21:
+		arg = fc(x, x.Request)
+	case func22:
+		err = fc(x, x.Request)
+	case func23:
+		arg, err = fc(x, x.Request)
+	case funcErr:
 		// do nothing
 	}
 	if err != nil {
@@ -273,7 +283,7 @@ func (x *X) handleErr(err error) bool {
 		return false
 	}
 	for _, fc := range x.fcs[x.fid:] {
-		if fc, ok := fc.(fc_err); ok && err != nil {
+		if fc, ok := fc.(funcErr); ok && err != nil {
 			err = fc(x, err)
 		}
 	}

@@ -16,15 +16,20 @@ import (
 	"github.com/veypi/utils/logv"
 )
 
-type fc0 = func(*X)
-type fc1 = func(*X) error
-type fc2 = func(http.ResponseWriter, *http.Request) error
-type fc3 = func(http.ResponseWriter, *http.Request)
+type func00 = func(*X)
+type func01 = func(*X) any
+type func02 = func(*X) error
+type func03 = func(*X) (any, error)
+type func10 = func(*X, any)
+type func11 = func(*X, any) any
+type func12 = func(*X, any) error
+type func13 = func(*X, any) (any, error)
 
-type fc4 = func(*X) (any, error)
-type fc5 = func(*X, any) error
-type fc6 = func(*X, any) (any, error)
-type fc_err = func(*X, error) error
+type func20 = func(http.ResponseWriter, *http.Request)
+type func21 = func(http.ResponseWriter, *http.Request) any
+type func22 = func(http.ResponseWriter, *http.Request) error
+type func23 = func(http.ResponseWriter, *http.Request) (any, error)
+type funcErr = func(*X, error) error
 
 var allowedMethods = []string{
 	http.MethodGet, http.MethodHead, http.MethodPost, http.MethodPut,
@@ -301,7 +306,7 @@ func (r *route) Set(prefix string, method string, handlers ...any) Router {
 			logv.WithNoCaller.Fatal().Caller(1).Msgf("set nil handler for %s/%s: %T", r.String(), prefix, fc)
 		}
 		switch fc := fc.(type) {
-		case fc0, fc1, fc2, fc3, fc4, fc5, fc6, fc_err:
+		case func00, func01, func02, func03, func10, func11, func12, func13, func20, func21, func22, func23, funcErr:
 		default:
 			logv.WithNoCaller.Fatal().Caller(2).Msgf("handler type not support: %T", fc)
 		}
@@ -339,7 +344,7 @@ func (r *route) Delete(url string, handlers ...any) Router {
 func (r *route) UseAfter(middleware ...any) Router {
 	for _, m := range middleware {
 		switch m := m.(type) {
-		case fc0, fc1, fc2, fc3, fc4, fc5, fc6, fc_err:
+		case func00, func01, func02, func03, func10, func11, func12, func13, func20, func21, func22, func23, funcErr:
 			r.use(m, false)
 		default:
 			panic(fmt.Sprintf("not support middleware %T", m))
@@ -351,7 +356,7 @@ func (r *route) UseAfter(middleware ...any) Router {
 func (r *route) UseBefore(middleware ...any) Router {
 	for _, m := range middleware {
 		switch m := m.(type) {
-		case fc0, fc1, fc2, fc3, fc4, fc5, fc6, fc_err:
+		case func00, func01, func02, func03, func10, func11, func12, func13, func20, func21, func22, func23, funcErr:
 			r.use(m, true)
 		default:
 			panic(fmt.Sprintf("not support middleware %T", m))
@@ -382,7 +387,7 @@ func (r *route) syncCache() {
 		tmpr = tmpr.parent
 	}
 	for k := range r.handlers {
-		r.handlersCache[k] = append(before, r.handlers[k]...)
+		r.handlersCache[k] = append(append([]any{}, before...), r.handlers[k]...)
 		r.handlersCache[k] = append(r.handlersCache[k], after...)
 	}
 

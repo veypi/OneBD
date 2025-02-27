@@ -103,7 +103,7 @@ func EmbedFile(f []byte, contentType string) func(*rest.X) {
 
 // need to define *path in url variable
 func EmbedDir(dir embed.FS, fsPrefix string, file404 string) func(*rest.X) {
-	if !strings.HasSuffix(fsPrefix, "/") {
+	if len(fsPrefix) > 0 && !strings.HasSuffix(fsPrefix, "/") {
 		fsPrefix += "/"
 	}
 	return func(x *rest.X) {
