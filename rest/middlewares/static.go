@@ -91,9 +91,9 @@ func handleDirOpen(f fs.File, err error) (fs.File, fs.FileInfo, error) {
 	return f, info, nil
 }
 
-func EmbedFile(f []byte) func(*rest.X) {
+func EmbedFile(f []byte, contentType string) func(*rest.X) {
 	return func(x *rest.X) {
-		x.Header().Set("Content-Type", mime.TypeByExtension(path.Ext(x.Request.URL.Path)))
+		x.Header().Set("Content-Type", contentType)
 		_, err := x.Write(f)
 		if err != nil {
 			logv.Warn().Msgf("write file failed: %s", err.Error())
@@ -118,7 +118,7 @@ func EmbedDir(dir embed.FS, fsPrefix string, file404 string) func(*rest.X) {
 			}
 		}
 		if err != nil {
-			x.WriteHeader(http.StatusNotFound)
+			x.ResponseWriter().WriteHeader(http.StatusNotFound)
 			logv.Debug().Err(err).Send()
 			return
 		}

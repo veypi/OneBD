@@ -268,6 +268,10 @@ func (x *X) Next(args ...any) {
 }
 
 func (x *X) handleErr(err error) bool {
+	if x.fid >= len(x.fcs) {
+		logv.Warn().Msgf("unhandled error: %v", err)
+		return false
+	}
 	for _, fc := range x.fcs[x.fid:] {
 		if fc, ok := fc.(fc_err); ok && err != nil {
 			err = fc(x, err)
@@ -280,6 +284,9 @@ func (x *X) handleErr(err error) bool {
 	return true
 }
 
+func (x *X) ResponseWriter() http.ResponseWriter {
+	return x.writer
+}
 func (x *X) Write(p []byte) (n int, err error) {
 	if x.code > 0 {
 		x.writer.WriteHeader(x.code)
@@ -304,6 +311,24 @@ func (x *X) JSON(data any) error {
 	_, err = x.Write(v)
 	return err
 }
+
+func (x *X) AliveWriter() func(p []byte) (int, error) {
+	x.writer.Header().Set("Content-Type", "text/event-stream")
+	x.writer.Header().Set("Cache-Control", "no-cache")
+	x.writer.Header().Set("Connection", "keep-alive")
+	f := x.writer.(http.Flusher)
+	x.code = 0
+	fc := func(p []byte) (int, error) {
+		l, err := x.writer.Write(p)
+		if err != nil {
+			return l, err
+		}
+		f.Flush()
+		return l, nil
+	}
+	return fc
+}
+
 func (x *X) GetRemoteIp() string {
 	// 首先尝试从 X-Forwarded-For 获取 IP 地址
 	ip := x.Request.Header.Get("X-Forwarded-For")
@@ -360,7 +385,7 @@ var xPool = sync.Pool{
 
 func acquire() *X {
 	x := xPool.Get().(*X)
-	x.code = 200
+	x.code = 0
 	return x
 }
 

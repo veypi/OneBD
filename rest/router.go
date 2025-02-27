@@ -32,9 +32,9 @@ var allowedMethods = []string{
 	http.MethodOptions, http.MethodTrace, "ANY"}
 
 func NewRouter() Router {
-	r := &route{}
-	r.notFoundHandler = func(x *X) {
-		x.WriteHeader(404)
+	r := &route{
+		funcBefore: make([]any, 0, 10),
+		funcAfter:  make([]any, 0, 10),
 	}
 	return r
 }
@@ -46,6 +46,7 @@ type Router interface {
 	ServeHTTP(http.ResponseWriter, *http.Request)
 	SubRouter(prefix string) Router
 
+	Clear(url string, method string)
 	Set(url string, method string, handlers ...any) Router
 	Get(url string, handlers ...any) Router
 	Any(url string, handlers ...any) Router
@@ -55,24 +56,25 @@ type Router interface {
 	Patch(url string, handlers ...any) Router
 	Delete(url string, handlers ...any) Router
 
-	Use(middleware ...any)
-	SetNotFound(fc fc0)
+	UseBefore(middleware ...any) Router
+	UseAfter(middleware ...any) Router
+	Replace(Router) Router
+	Extend(string, Router) Router
 }
 
 type route struct {
 	// just blank for root router
-	fragment   string
-	handlers   map[string][]any
-	middleware []any
+	fragment      string
+	funcBefore    []any
+	funcAfter     []any
+	handlers      map[string][]any
+	handlersCache map[string][]any
 
-	root   *route
 	parent *route
 
 	subRouters map[string]*route
 	colon      *route
 	wildcard   *route
-
-	notFoundHandler fc0
 }
 
 func (r *route) Print() {
@@ -97,7 +99,7 @@ func (r *route) tree() []string {
 		item = "\033[32m" + item + "\033[0m"
 		for m := range r.handlers {
 			item += "\n    " + m
-			for _, h := range r.handlers[m] {
+			for _, h := range r.handlersCache[m] {
 				op := reflect.ValueOf(h).Pointer()
 				fnName := strings.Split(runtime.FuncForPC(op).Name(), "/")
 				item += fmt.Sprintf(" %s", fnName[len(fnName)-1])
@@ -135,17 +137,17 @@ func (r *route) String() string {
 func (r *route) match(u string, m string, x *X) (*route, []any) {
 	if u == "/" || u == "" {
 		if len(r.handlers[m]) > 0 {
-			return r, r.handlers[m]
+			return r, r.handlersCache[m]
 		} else if len(r.handlers["ANY"]) > 0 {
-			return r, r.handlers["ANY"]
+			return r, r.handlersCache["ANY"]
 		}
 		if r.wildcard != nil {
 			if len(r.wildcard.handlers[m]) > 0 {
 				x.SetParam(r.wildcard.fragment[1:], "")
-				return r.wildcard, r.wildcard.handlers[m]
+				return r.wildcard, r.wildcard.handlersCache[m]
 			} else if len(r.wildcard.handlers["ANY"]) > 0 {
 				x.SetParam(r.wildcard.fragment[1:], "")
-				return r.wildcard, r.wildcard.handlers["ANY"]
+				return r.wildcard, r.wildcard.handlersCache["ANY"]
 			}
 		}
 		return nil, nil
@@ -178,14 +180,11 @@ func (r *route) match(u string, m string, x *X) (*route, []any) {
 	if r.wildcard != nil {
 		if len(r.wildcard.handlers[m]) > 0 {
 			x.SetParam(r.wildcard.fragment[1:], u)
-			return r.wildcard, r.wildcard.handlers[m]
+			return r.wildcard, r.wildcard.handlersCache[m]
 		} else if len(r.wildcard.handlers["ANY"]) > 0 {
 			x.SetParam(r.wildcard.fragment[1:], u)
-			return r.wildcard, r.wildcard.handlers["ANY"]
+			return r.wildcard, r.wildcard.handlersCache["ANY"]
 		}
-	}
-	if r.notFoundHandler != nil {
-		return r, nil
 	}
 	return nil, nil
 }
@@ -196,18 +195,15 @@ func (r *route) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	x.Request = req
 	x.writer = w
 	start := time.Now()
+	_ = start
 
-	if subR, fcs := r.match(req.URL.Path[1:], req.Method, x); subR != nil {
-		if len(fcs) > 0 {
-			x.fcs = fcs
-			x.Next()
-		} else {
-			subR.notFoundHandler(x)
-		}
-	} else if r.notFoundHandler != nil {
-		r.notFoundHandler(x)
+	if subR, fcs := r.match(req.URL.Path[1:], req.Method, x); subR != nil && len(fcs) > 0 {
+		x.fcs = fcs
+		x.Next()
+		logv.WithNoCaller.Debug().Int("ms", int(time.Since(start).Milliseconds())).Str("method", req.Method).Int("code", x.code).Msg(req.RequestURI)
+	} else {
+		logv.WithNoCaller.Warn().Str("method", req.Method).Str("path", req.URL.Path).Msg("Not Handled")
 	}
-	logv.WithNoCaller.Debug().Int("ms", int(time.Since(start).Milliseconds())).Str("method", req.Method).Int("code", x.code).Msg(req.RequestURI)
 }
 
 func (r *route) get_subrouter(url string) *route {
@@ -228,7 +224,6 @@ func (r *route) get_subrouter(url string) *route {
 			next = &route{
 				fragment: url[startIdx:i],
 				parent:   last,
-				root:     last.root,
 			}
 			startIdx = i + 1
 			if next.fragment == "" {
@@ -269,6 +264,24 @@ func (r *route) get_subrouter(url string) *route {
 	return last
 }
 
+func (r *route) Clear(prefix string, method string) {
+	var tmp *route
+	if len(r.fragment) > 0 && r.fragment[0] == '*' {
+		tmp = r
+	} else {
+		tmp = r.get_subrouter(prefix)
+	}
+	if method == "*" {
+		tmp.handlers = nil
+		tmp.subRouters = nil
+		tmp.funcAfter = nil
+		tmp.funcBefore = nil
+	} else {
+		delete(tmp.handlers, method)
+	}
+	tmp.syncCache()
+}
+
 func (r *route) Set(prefix string, method string, handlers ...any) Router {
 	method = strings.ToUpper(method)
 	logv.Assert(utils.InList(method, allowedMethods), fmt.Sprintf("not support HTTP method: %v", method))
@@ -290,27 +303,15 @@ func (r *route) Set(prefix string, method string, handlers ...any) Router {
 		switch fc := fc.(type) {
 		case fc0, fc1, fc2, fc3, fc4, fc5, fc6, fc_err:
 		default:
-			logv.WithNoCaller.Fatal().Caller(1).Msgf("handler type not support: %T", fc)
+			logv.WithNoCaller.Fatal().Caller(2).Msgf("handler type not support: %T", fc)
 		}
 	}
 	if tmp.handlers[method] != nil {
 		tmp.handlers[method] = append(tmp.handlers[method], handlers...)
-		return tmp
+	} else {
+		tmp.handlers[method] = handlers
 	}
-	fcs := make([]any, 0, 10)
-	var tmp_route = r
-	for {
-		if len(tmp_route.middleware) != 0 {
-			fcs = append(tmp_route.middleware, fcs...)
-		}
-		if tmp_route.parent != nil {
-			tmp_route = tmp_route.parent
-		} else {
-			break
-		}
-	}
-	fcs = append(fcs, handlers...)
-	tmp.handlers[method] = fcs
+	tmp.syncCache()
 	return tmp
 }
 func (r *route) Any(url string, handlers ...any) Router {
@@ -335,37 +336,89 @@ func (r *route) Delete(url string, handlers ...any) Router {
 	return r.Set(url, http.MethodDelete, handlers...)
 }
 
-func (r *route) Use(middleware ...any) {
+func (r *route) UseAfter(middleware ...any) Router {
 	for _, m := range middleware {
 		switch m := m.(type) {
 		case fc0, fc1, fc2, fc3, fc4, fc5, fc6, fc_err:
-			r.use(m)
+			r.use(m, false)
 		default:
 			panic(fmt.Sprintf("not support middleware %T", m))
 		}
 	}
+	return r
 }
 
-func (r *route) use(m any) {
-	if r == nil {
-		return
+func (r *route) UseBefore(middleware ...any) Router {
+	for _, m := range middleware {
+		switch m := m.(type) {
+		case fc0, fc1, fc2, fc3, fc4, fc5, fc6, fc_err:
+			r.use(m, true)
+		default:
+			panic(fmt.Sprintf("not support middleware %T", m))
+		}
 	}
-	r.middleware = append(r.middleware, m)
+	return r
+}
+
+func (r *route) use(m any, before bool) {
+	if before {
+		r.funcBefore = append(r.funcBefore, m)
+	} else {
+		r.funcAfter = append(r.funcAfter, m)
+	}
+	r.syncCache()
+}
+
+func (r *route) syncCache() {
+	r.handlersCache = make(map[string][]any)
+	before := make([]any, 0, 10)
+	after := make([]any, 0, 10)
+	tmpr := r
+	for tmpr != nil {
+		// ! slice 陷阱
+		// before = append(tmpr.funcBefore[:], before...)
+		before = append(before[:0], append(tmpr.funcBefore, before...))
+		after = append(after, tmpr.funcAfter...)
+		tmpr = tmpr.parent
+	}
+	for k := range r.handlers {
+		r.handlersCache[k] = append(before, r.handlers[k]...)
+		r.handlersCache[k] = append(r.handlersCache[k], after...)
+	}
+
 	for _, sub := range r.subRouters {
-		sub.use(m)
+		sub.syncCache()
 	}
-	r.colon.use(m)
-	r.wildcard.use(m)
-	for method := range r.handlers {
-		r.handlers[method] = append(r.handlers[method], m)
+	if r.colon != nil {
+		r.colon.syncCache()
 	}
+	if r.wildcard != nil {
+		r.wildcard.syncCache()
+	}
+}
+
+func (r *route) Extend(prefix string, subr Router) Router {
+	return r.get_subrouter(prefix).Replace(subr)
+}
+func (r *route) Replace(subr Router) Router {
+	// r.parent = parent.(*route)
+	logv.Assert(r.parent != nil, "root router can not replace")
+	name := r.fragment
+	sub := subr.(*route)
+	sub.fragment = name
+	sub.parent = r.parent
+	if name[0] == '*' {
+		r.parent.wildcard = sub
+	} else if name[0] == ':' {
+		r.parent.colon = sub
+	} else {
+		r.parent.subRouters[name] = sub
+	}
+	sub.syncCache()
+	return sub
 }
 
 func (r *route) SubRouter(prefix string) Router {
 	logv.Assert(prefix != "" && prefix != "/", "subrouter path can not be '' or '/'")
 	return r.get_subrouter(prefix)
-}
-
-func (r *route) SetNotFound(fc fc0) {
-	r.notFoundHandler = fc
 }

@@ -17,7 +17,14 @@ import (
 	"golang.org/x/net/netutil"
 )
 
-func New(c *RestConf) (*Application, error) {
+func New(opts ...func(*RestConf)) (*Application, error) {
+	c := &RestConf{
+		Host: "0.0.0.0",
+		Port: 8000,
+	}
+	for _, opt := range opts {
+		opt(c)
+	}
 	if err := c.IsValid(); err != nil {
 		return nil, err
 	}

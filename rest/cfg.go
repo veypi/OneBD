@@ -42,3 +42,39 @@ func (c *RestConf) IsValid() error {
 	}
 	return nil
 }
+
+func WithTls(cfg *tls.Config) func(*RestConf) {
+	return func(c *RestConf) {
+		c.TlsCfg = cfg
+	}
+}
+
+func WithHost(host string) func(*RestConf) {
+	return func(c *RestConf) {
+		c.Host = host
+	}
+}
+
+func WithPort(port int) func(*RestConf) {
+	return func(c *RestConf) {
+		c.Port = port
+	}
+}
+
+func WithLoggerPath(path string) func(*RestConf) {
+	return func(c *RestConf) {
+		c.LoggerPath = path
+	}
+}
+
+func WithLoggerLevel(level string) func(*RestConf) {
+	return func(c *RestConf) {
+		c.LoggerLevel = level
+	}
+}
+
+func WithPrettyLog() func(*RestConf) {
+	return func(c *RestConf) {
+		c.PrettyLog = true
+	}
+}
