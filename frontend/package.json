@@ -1,0 +1,37 @@
+{
+  "name": "onebd-form-creator",
+  "version": "1.0.0",
+  "description": "Modern form creation component for OneBD framework",
+  "main": "components/FormCreator.vue",
+  "scripts": {
+    "demo": "open demo.html",
+    "serve": "python3 -m http.server 8080"
+  },
+  "keywords": [
+    "vue",
+    "form",
+    "component",
+    "onebd",
+    "vyesjs",
+    "frontend"
+  ],
+  "author": "OneBD Framework",
+  "license": "MIT",
+  "peerDependencies": {
+    "vue": "^3.0.0"
+  },
+  "devDependencies": {},
+  "files": [
+    "components/",
+    "README.md",
+    "demo.html"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/veypi/OneBD"
+  },
+  "bugs": {
+    "url": "https://github.com/veypi/OneBD/issues"
+  },
+  "homepage": "https://github.com/veypi/OneBD#readme"
+}
